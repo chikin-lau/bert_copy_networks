@@ -222,6 +222,7 @@ class Trainer(object):
         dev_loader = self.make_dataloader(0, self.dev_data, self.eval_batch_size)
 
         if os.path.exists('./model_dict/model.pt'):
+            print("loading the checkpoint")
             model = torch.load('./model_dict/model.pt').to(self.rank)
         else:
             model = self.model.to(self.rank)
