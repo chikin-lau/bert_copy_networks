@@ -225,6 +225,7 @@ class Trainer(object):
             print("loading the checkpoint")
             model = torch.load('./model_dict/model.pt').to(self.rank)
         else:
+            print("training a new model")
             model = self.model.to(self.rank)
 
         total_steps = len(train_loader) * self.epochs
