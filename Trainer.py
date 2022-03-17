@@ -3,6 +3,7 @@ import re
 import csv
 from tqdm import tqdm
 from torch.cuda.amp import autocast as autocast
+import math
 
 import torch
 import torch.nn as nn
@@ -47,7 +48,7 @@ class Trainer(object):
         self.train_data = self.load_data(args.train_file, 'Persona_train_3W.pt', is_test=False)
         self.dev_data = self.load_data(args.dev_file, 'Persona_val_clean.pt', is_test=False)
 
-        self.test_data = self.load_test_data(args.test_file, 'Persona_test_deepclean.pt')
+        self.test_data = self.load_data(args.test_file, 'Persona_test_deepclean.pt')
         self.model = PointerGeneratorTransformer(
             rank=self.rank, src_vocab_size=self.vocab_size,
             tgt_vocab_size=self.vocab_size, inv_vocab=self.inv_vocab,
@@ -169,8 +170,9 @@ class Trainer(object):
         else:
             dataset = TensorDataset(data_dict["src_input_ids"], data_dict["src_attention_masks"])
         if shuffle:
-            sampler = DistributedSampler(dataset, num_replicas=self.world_size, rank=rank)
-            dataset_loader = DataLoader(dataset, sampler=sampler, batch_size=batch_size, shuffle=False)
+            # sampler = DistributedSampler(dataset, num_replicas=self.world_size, rank=rank)
+            # dataset_loader = DataLoader(dataset, sampler=sampler, batch_size=batch_size, shuffle=False)
+            dataset_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         else:
             dataset_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
         return dataset_loader
@@ -206,7 +208,8 @@ class Trainer(object):
             return loss
 
         if smoothing:
-            loss = label_smoothing(logits, ground)
+            # loss = label_smoothing(logits, ground)
+            loss = F.cross_entropy(logits, ground, ignore_index=self.pad_id, label_smoothing=self.label_smooth)
         else:
             loss = F.cross_entropy(logits, ground, ignore_index=self.pad_id)
 
@@ -495,6 +498,7 @@ class Trainer(object):
 
         f = open(os.path.join(self.dataset_dir, 'eval_results.csv'), 'a+', encoding='utf-8')
 
+        running_loss = 0
         with torch.no_grad():
             for batch in tqdm(data_loader):
                 src_input_ids, src_input_masks = batch[0].to(self.rank), batch[1].to(self.rank)
@@ -511,6 +515,7 @@ class Trainer(object):
                 # Compute loss
                 loss, n_correct, n_word = self.cal_performance(output, trg_ground_ids, smoothing=True)
                 accuracy = float(100.0 * n_correct) / n_word
+                running_loss += loss.item()
 
                 if accuracy < 95.0:
                     src_string = self.decode(src_input_ids)[0]
@@ -522,4 +527,9 @@ class Trainer(object):
 
                     f.write(src_string + '\t' + trg_string + '\t' + pred_string + '\n')
 
-            f.close()
+        loss = running_loss / len(data_loader)
+        ppl = math.exp(loss)
+        print(f"eval loss: {loss:.4f}, ppl: {ppl:.2f}%, accuracy: {accuracy:.2f}%")
+        f.write(f"eval loss: {loss:.4f}, ppl: {ppl:.2f}, accuracy: {accuracy:.2f}%")
+
+        f.close()

@@ -30,11 +30,23 @@ def main():
                         help='number of gpus to use')
     parser.add_argument('--fp16', default=False, type=bool,
                         help='是否使用混合精度加速')
+    # parser.add_argument('--is_train', action='store_true')
+    parser.add_argument('--is_test', action='store_true')
+    parser.add_argument('--is_generate', action='store_true')
+    parser.add_argument('--is_eval', action='store_true')
     args = parser.parse_args()
 
     trainer = Trainer(args, rank=1)
 
-    trainer.train()
+    if args.is_test:
+        trainer.test()
+    elif args.is_generate:
+        trainer.generate(out_max_length=60, top_k=5, top_p=0.95, max_length=200)
+    elif args.is_eval:
+        trainer.eval()
+    else:
+        trainer.train()
+    # trainer.train()
 
     # trainer.test()
     # trainer.generate(out_max_length=60, top_k=5, top_p=0.95, max_length=200)
