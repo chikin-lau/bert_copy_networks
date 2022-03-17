@@ -192,7 +192,7 @@ class Trainer(object):
 
     def cal_loss(self, logits, ground, smoothing=True):
         def label_smoothing(logits, labels):
-            eps = 0.1
+            eps = self.label_smooth
             num_classes = logits.size(-1)
 
             # >>> z = torch.zeros(2, 4).scatter_(1, torch.tensor([[2], [3]]), 1.23)
@@ -208,8 +208,8 @@ class Trainer(object):
             return loss
 
         if smoothing:
-            # loss = label_smoothing(logits, ground)
-            loss = F.cross_entropy(logits, ground, ignore_index=self.pad_id, label_smoothing=self.label_smooth)
+            loss = label_smoothing(logits, ground)
+            # loss = F.cross_entropy(logits, ground, ignore_index=self.pad_id, label_smoothing=self.label_smooth)
         else:
             loss = F.cross_entropy(logits, ground, ignore_index=self.pad_id)
 
