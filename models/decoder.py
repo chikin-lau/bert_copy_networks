@@ -25,6 +25,41 @@ class TransformerDecoder(nn.Module):
         self.dropout2 = Dropout(dropout)
         self.dropout3 = Dropout(dropout)
 
+    # def forward(self, tgt, memory, tgt_mask=None,
+    #             memory_mask=None, tgt_key_padding_mask=None,
+    #             memory_key_padding_mask=None):
+    #     '''
+    #     Input:
+    #         tgt: target input ids
+    #         memory: hidden states of source input ids
+    #         tgt_mask: mask special target token ids, default is None
+    #         memory_mask: mask special input token ids, default is None
+    #         tgt_key_padding_mask: mask [PAD] in target token ids
+    #         memory_key_padding_mask: mask [PAD] in memory token ids
+    #     '''
+    #     attn_dists = []
+    #     for i in range(self.num_layers):
+    #         # self_attention
+    #         tgt2 = self.self_attn(tgt, tgt, tgt,  attn_mask=tgt_mask,
+    #                                 key_padding_mask=tgt_key_padding_mask)[0]
+    #         tgt = tgt + self.dropout1(tgt2)
+    #         tgt = self.norm1(tgt)
+    #         # Model saves attention weights from multi-head-attn
+    #         tgt2, attn_dist = self.multihead_attn(tgt, memory, memory, attn_mask=memory_mask,
+    #                                 key_padding_mask=memory_key_padding_mask)
+    #         tgt = tgt + self.dropout2(tgt2)
+    #         tgt = self.norm2(tgt)
+    #
+    #         attn_dists.append(attn_dist)    # add attention weights to attn_dists
+    #
+    #         # feed forward neural network
+    #         tgt2 = self.linear2(self.dropout(F.relu(self.linear1(tgt))))
+    #         tgt = tgt + self.dropout3(tgt2)
+    #         tgt = self.norm3(tgt)
+    #
+    #     return tgt, attn_dists
+
+
     def forward(self, tgt, memory, tgt_mask=None,
                 memory_mask=None, tgt_key_padding_mask=None,
                 memory_key_padding_mask=None):
@@ -32,31 +67,30 @@ class TransformerDecoder(nn.Module):
         Input:
             tgt: target input ids
             memory: hidden states of source input ids
-            tgt_mask: mask special target token ids, default is None 
+            tgt_mask: mask special target token ids, default is None
             memory_mask: mask special input token ids, default is None
             tgt_key_padding_mask: mask [PAD] in target token ids
             memory_key_padding_mask: mask [PAD] in memory token ids
         '''
-        attn_dists = []
-        for i in range(self.num_layers):
-            # self_attention
-            tgt2 = self.self_attn(tgt, tgt, tgt,  attn_mask=tgt_mask, 
+        # attn_dists = []
+        # self_attention
+        tgt2 = self.self_attn(tgt, tgt, tgt,  attn_mask=tgt_mask,
                                     key_padding_mask=tgt_key_padding_mask)[0]
-            tgt = tgt + self.dropout1(tgt2)
-            tgt = self.norm1(tgt)
-            # Model saves attention weights from multi-head-attn
-            tgt2, attn_dist = self.multihead_attn(tgt, memory, memory, attn_mask=memory_mask,
+        tgt = tgt + self.dropout1(tgt2)
+        tgt = self.norm1(tgt)
+        # Model saves attention weights from multi-head-attn
+        tgt2, attn_dist = self.multihead_attn(tgt, memory, memory, attn_mask=memory_mask,
                                     key_padding_mask=memory_key_padding_mask)
-            tgt = tgt + self.dropout2(tgt2)
-            tgt = self.norm2(tgt)
+        tgt = tgt + self.dropout2(tgt2)
+        tgt = self.norm2(tgt)
 
-            attn_dists.append(attn_dist)    # add attention weights to attn_dists
+        # attn_dists.append(attn_dist)    # add attention weights to attn_dists
 
-            # feed forward neural network
-            tgt2 = self.linear2(self.dropout(F.relu(self.linear1(tgt))))
-            tgt = tgt + self.dropout3(tgt2)
-            tgt = self.norm3(tgt)
+        # feed forward neural network
+        tgt2 = self.linear2(self.dropout(F.relu(self.linear1(tgt))))
+        tgt = tgt + self.dropout3(tgt2)
+        tgt = self.norm3(tgt)
 
-        return tgt, attn_dists
+        return tgt, attn_dist
 
 

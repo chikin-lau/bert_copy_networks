@@ -39,7 +39,8 @@ class PointerGeneratorTransformer(nn.Module):
 
         # Decoder layers
         # self.decoder_layer = TransformerDecoderLayer(d_model=embedding_dim, nhead=num_heads, dim_feedforward=fcn_hidden_dim, dropout=dropout)
-        self.decoder = TransformerDecoder(num_layers)
+        # self.decoder = TransformerDecoder(num_layers)
+        self.decoder = nn.ModuleList([TransformerDecoder(num_layers) for _ in range(num_layers)])
 
         # Final linear layer + softmax. for probability over target vocabulary
         # self.last_linear = nn.Linear(self.embedding_dim, self.tgt_vocab_size)
@@ -80,11 +81,20 @@ class PointerGeneratorTransformer(nn.Module):
         tgt_embed = self.tgt_embed(tgt).transpose(0, 1)
         
         # Get output of decoder and attention weights. decoder Dimensions stay the same
-        decoder_output, attention = self.decoder(tgt_embed, memory, tgt_mask=tgt_mask,
+        # decoder_output, attention = self.decoder(tgt_embed, memory, tgt_mask=tgt_mask,
+        #                                          memory_mask=None,
+        #                                          tgt_key_padding_mask=tgt_key_padding_mask,
+        #                                          memory_key_padding_mask=memory_key_padding_mask)                                         memory_key_padding_mask=memory_key_padding_mask)
+        # decoder_output = decoder_output.transpose(0, 1)
+        attention = []
+        for layer in self.decoder:
+            decoder_output, attn = layer(tgt_embed, memory, tgt_mask=tgt_mask,
                                                 memory_mask=None,
                                                 tgt_key_padding_mask=tgt_key_padding_mask,
                                                 memory_key_padding_mask=memory_key_padding_mask)
+            attention.append(attention)
         decoder_output = decoder_output.transpose(0, 1)
+
         
         # hidden states of src input, [bz, seq_len, embed_dim]
         hidden_states = memory.transpose(0, 1)
