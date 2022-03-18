@@ -452,7 +452,7 @@ class Trainer(object):
         test_loader = self.make_dataloader(0, self.test_data, 1, shuffle=False)
 
         model = torch.load('./model_dict/model.pt').to(self.rank)
-        f = open(os.path.join(self.dataset_dir, 'results.csv'), 'a+', encoding='utf-8')
+        f = open(os.path.join(self.dataset_dir, 'top_k_results.csv'), 'a+', encoding='utf-8')
 
         idx = 20000
         with torch.no_grad():
