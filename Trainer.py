@@ -224,14 +224,14 @@ class Trainer(object):
         train_loader = self.make_dataloader(0, self.train_data, self.train_batch_size)
         dev_loader = self.make_dataloader(0, self.dev_data, self.eval_batch_size)
 
-        # if os.path.exists('./model_dict/model.pt'):
-        #     print("loading the checkpoint")
-        #     model = torch.load('./model_dict/model.pt').to(self.rank)
-        # else:
-        #     print("training a new model")
-        #     model = self.model.to(self.rank)
+        if os.path.exists('./model_dict/model.pt'):
+            print("loading the checkpoint")
+            model = torch.load('./model_dict/model.pt').to(self.rank)
+        else:
+            print("training a new model")
+            model = self.model.to(self.rank)
 
-        model = self.model.to(self.rank)
+        # model = self.model.to(self.rank)
         print(model)
         print(get_parameter_number(model))
 
