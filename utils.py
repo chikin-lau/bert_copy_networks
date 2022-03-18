@@ -28,3 +28,8 @@ def get_logger():
     stream.setFormatter(log_formatter)
     logger.addHandler(stream)
     return logger
+
+def get_parameter_number(model):
+    total_num = sum(p.numel() for p in model.parameters())
+    trainable_num = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    return {'Total': total_num, 'Trainable': trainable_num}

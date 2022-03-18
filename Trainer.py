@@ -233,6 +233,7 @@ class Trainer(object):
 
         model = self.model.to(self.rank)
         print(model)
+        get_parameter_number(model)
 
         total_steps = len(train_loader) * self.epochs
 
