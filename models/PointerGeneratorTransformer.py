@@ -20,7 +20,7 @@ class PointerGeneratorTransformer(nn.Module):
     def __init__(self, rank=0, src_vocab_size=128, tgt_vocab_size=128,
                  inv_vocab=None, pad_id=0,
                  embedding_dim=768, fcn_hidden_dim=3072,
-                 num_heads=12, num_layers=8, dropout=0.1,
+                 num_heads=12, num_layers=12, dropout=0.1,
                  max_len=200):
         super(PointerGeneratorTransformer, self).__init__()
         
