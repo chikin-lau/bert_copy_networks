@@ -92,7 +92,7 @@ class PointerGeneratorTransformer(nn.Module):
                                                 memory_mask=None,
                                                 tgt_key_padding_mask=tgt_key_padding_mask,
                                                 memory_key_padding_mask=memory_key_padding_mask)
-            attention.append(attention)
+            attention.append(attn)
         decoder_output = decoder_output.transpose(0, 1)
 
         
