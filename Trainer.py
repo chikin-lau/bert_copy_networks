@@ -308,7 +308,7 @@ class Trainer(object):
                 correct_words += n_correct
                 total_words += n_word
                 total_steps += 1
-                if total_steps % 300 == 0:
+                if total_steps % 100 == 0:
                     self.logger.info(
                         f"Train Epoch: {epoch + 1}, Total Steps: {total_steps}, avg loss: {running_loss / total_steps:.4f}, accuracy: {100 * correct_words / total_words:.2f}%")
 
