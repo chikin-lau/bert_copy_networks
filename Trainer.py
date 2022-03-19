@@ -45,10 +45,10 @@ class Trainer(object):
         self.sep_id = self.vocab['[SEP]']
         self.unk_id = self.vocab['[UNK]']
 
-        self.train_data = self.load_data(args.train_file, 'Persona_train_clean.pt', is_test=False)
-        self.dev_data = self.load_data(args.dev_file, 'Persona_val_clean.pt', is_test=False)
+        self.train_data = self.load_data(args.train_file, args.train_file.split(".")[0]+".pt", is_test=False)
+        self.dev_data = self.load_data(args.dev_file, args.dev_file.split(".")[0]+".pt", is_test=False)
 
-        self.test_data = self.load_data(args.test_file, 'Persona_test_deepclean.pt')
+        self.test_data = self.load_data(args.test_file, args.test_file.split(".")[0]+".pt")
         self.model = PointerGeneratorTransformer(
             rank=self.rank, src_vocab_size=self.vocab_size,
             tgt_vocab_size=self.vocab_size, inv_vocab=self.inv_vocab,
