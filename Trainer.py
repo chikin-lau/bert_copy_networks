@@ -298,6 +298,7 @@ class Trainer(object):
 
                     optimizer.step()
 
+                print(optimizer.state_dict()['param_groups'])
                 optimizer.zero_grad()
                 scheduler.step()
 
