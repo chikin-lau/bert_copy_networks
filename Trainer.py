@@ -298,7 +298,7 @@ class Trainer(object):
 
                     optimizer.step()
 
-                print("lr[0]:",optimizer.state_dict()['param_groups'][0]["lr"])
+                # print("lr[0]:",optimizer.state_dict()['param_groups'][0]["lr"])
                 # print("initial_lr[0]:",optimizer.state_dict()['param_groups'][0]["initial_lr"])
                 optimizer.zero_grad()
                 # scheduler.step()
