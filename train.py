@@ -8,7 +8,7 @@ def main():
 
     parser.add_argument('--dataset_dir', default='./data',
                         help='directory for dataset')
-    parser.add_argument('--train_file', default='Persona_train_3W.tsv',
+    parser.add_argument('--train_file', default='Persona_train_clean.tsv',
                         help='name of train file')
     parser.add_argument('--dev_file', default='Persona_val_clean.tsv',
                         help='name of dev file')
@@ -18,11 +18,11 @@ def main():
                         help='vocab path for pre-trained model')
     parser.add_argument('--max_len', type=int, default=200,
                         help='vocab path for pre-trained model')
-    parser.add_argument('--train_batch_size', type=int, default=16,
+    parser.add_argument('--train_batch_size', type=int, default=32,
                         help='batch size for training')
-    parser.add_argument('--eval_batch_size', type=int, default=2,
+    parser.add_argument('--eval_batch_size', type=int, default=16,
                         help='batch size for evaluating')
-    parser.add_argument('--epochs', default=200, type=int,
+    parser.add_argument('--epochs', default=20, type=int,
                         help='number of epochs for training')
     parser.add_argument('--label_smooth', default=0.1, type=float,
                         help='label smoothing coeff')
@@ -41,7 +41,7 @@ def main():
     if args.is_test:
         trainer.test()
     elif args.is_generate:
-        trainer.generate(out_max_length=60, top_k=5, top_p=0.95, max_length=200)
+        trainer.generate(out_max_length=64, top_k=5, top_p=0.95, max_length=128)
     elif args.is_eval:
         trainer.eval()
     else:

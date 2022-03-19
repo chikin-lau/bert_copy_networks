@@ -88,12 +88,12 @@ class PointerGeneratorTransformer(nn.Module):
         # decoder_output = decoder_output.transpose(0, 1)
         attention = []
         for layer in self.decoder:
-            decoder_output, attn = layer(tgt_embed, memory, tgt_mask=tgt_mask,
+            tgt_embed, attn = layer(tgt_embed, memory, tgt_mask=tgt_mask,
                                                 memory_mask=None,
                                                 tgt_key_padding_mask=tgt_key_padding_mask,
                                                 memory_key_padding_mask=memory_key_padding_mask)
             attention.append(attn)
-        decoder_output = decoder_output.transpose(0, 1)
+        decoder_output = tgt_embed.transpose(0, 1)
 
         
         # hidden states of src input, [bz, seq_len, embed_dim]

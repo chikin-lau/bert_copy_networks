@@ -45,7 +45,7 @@ class Trainer(object):
         self.sep_id = self.vocab['[SEP]']
         self.unk_id = self.vocab['[UNK]']
 
-        self.train_data = self.load_data(args.train_file, 'Persona_train_3W.pt', is_test=False)
+        self.train_data = self.load_data(args.train_file, 'Persona_train_clean.pt', is_test=False)
         self.dev_data = self.load_data(args.dev_file, 'Persona_val_clean.pt', is_test=False)
 
         self.test_data = self.load_data(args.test_file, 'Persona_test_deepclean.pt')
@@ -240,13 +240,13 @@ class Trainer(object):
         param_optimizer = list(model.named_parameters())
         no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [
-            {'params': model.encoder.parameters(), 'lr': 7e-6, 'weight_decay': 0.01},
-            {'params': model.tgt_embed.parameters(), 'lr': 7e-6, 'weight_decay': 0.01},
+            {'params': model.encoder.parameters(), 'lr': 3e-5, 'weight_decay': 0.01},
+            {'params': model.tgt_embed.parameters(), 'lr': 3e-5, 'weight_decay': 0.01},
             {'params': model.decoder.parameters(), 'weight_decay': 0.01},
             {'params': model.p_vocab.parameters(), 'weight_decay': 0.01},
             {'params': model.p_gen.parameters(), 'weight_decay': 0.01}
         ]
-        optimizer = AdamW(optimizer_grouped_parameters, lr=1e-4, eps=1e-8)
+        optimizer = AdamW(optimizer_grouped_parameters, lr=3e-4, eps=1e-8)
         if self.fp16 == True:
             scaler = torch.cuda.amp.GradScaler()
         # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=4000, num_training_steps=total_steps)
@@ -298,17 +298,17 @@ class Trainer(object):
 
                     optimizer.step()
 
-                print("lr[0]:",optimizer.state_dict()['param_groups'][0]["lr"])
-                print("initial_lr[0]:",optimizer.state_dict()['param_groups'][0]["initial_lr"])
+                # print("lr[0]:",optimizer.state_dict()['param_groups'][0]["lr"])
+                # print("initial_lr[0]:",optimizer.state_dict()['param_groups'][0]["initial_lr"])
                 optimizer.zero_grad()
-                scheduler.step()
+                # scheduler.step()
 
                 running_loss += loss.item()
 
                 correct_words += n_correct
                 total_words += n_word
                 total_steps += 1
-                if total_steps % 100 == 0:
+                if total_steps % 300 == 0:
                     self.logger.info(
                         f"Train Epoch: {epoch + 1}, Total Steps: {total_steps}, avg loss: {running_loss / total_steps:.4f}, accuracy: {100 * correct_words / total_words:.2f}%")
 
