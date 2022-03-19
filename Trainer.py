@@ -294,12 +294,12 @@ class Trainer(object):
                     loss, n_correct, n_word = self.cal_performance(outputs, trg_ground_ids, smoothing=True)
 
                     loss.backward()
-                    # nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                    nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
                     optimizer.step()
 
-                # print("lr[0]:",optimizer.state_dict()['param_groups'][0]["lr"])
-                # print("initial_lr[0]:",optimizer.state_dict()['param_groups'][0]["initial_lr"])
+                print("lr[0]:",optimizer.state_dict()['param_groups'][0]["lr"])
+                print("initial_lr[0]:",optimizer.state_dict()['param_groups'][0]["initial_lr"])
                 optimizer.zero_grad()
                 # scheduler.step()
 
