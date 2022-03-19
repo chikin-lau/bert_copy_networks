@@ -250,8 +250,8 @@ class Trainer(object):
         if self.fp16 == True:
             scaler = torch.cuda.amp.GradScaler()
         # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=4000, num_training_steps=total_steps)
-        # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=total_steps / 10,
-        #                                             num_training_steps=total_steps)
+        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=total_steps / 10,
+                                                    num_training_steps=total_steps)
 
         is_best = False
         curr_valid_loss = 0
@@ -301,14 +301,14 @@ class Trainer(object):
                 # print("lr[0]:",optimizer.state_dict()['param_groups'][0]["lr"])
                 # print("initial_lr[0]:",optimizer.state_dict()['param_groups'][0]["initial_lr"])
                 optimizer.zero_grad()
-                # scheduler.step()
+                scheduler.step()
 
                 running_loss += loss.item()
 
                 correct_words += n_correct
                 total_words += n_word
                 total_steps += 1
-                if total_steps % 10 == 0:
+                if total_steps % 100 == 0:
                     self.logger.info(
                         f"Train Epoch: {epoch + 1}, Total Steps: {total_steps}, avg loss: {running_loss / total_steps:.4f}, accuracy: {100 * correct_words / total_words:.2f}%")
 
