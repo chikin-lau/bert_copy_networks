@@ -250,8 +250,8 @@ class Trainer(object):
         if self.fp16 == True:
             scaler = torch.cuda.amp.GradScaler()
         # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=4000, num_training_steps=total_steps)
-        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=total_steps / 10,
-                                                    num_training_steps=total_steps)
+        # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=total_steps / 10,
+        #                                             num_training_steps=total_steps)
 
         is_best = False
         curr_valid_loss = 0
