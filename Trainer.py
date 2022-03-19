@@ -240,8 +240,8 @@ class Trainer(object):
         param_optimizer = list(model.named_parameters())
         no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [
-            {'params': model.encoder.parameters(), 'lr': 3e-5, 'weight_decay': 0.01},
-            {'params': model.tgt_embed.parameters(), 'lr': 3e-5, 'weight_decay': 0.01},
+            {'params': model.encoder.parameters(), 'lr': 1e-5, 'weight_decay': 0.01},
+            {'params': model.tgt_embed.parameters(), 'lr': 1e-5, 'weight_decay': 0.01},
             {'params': model.decoder.parameters(), 'weight_decay': 0.01},
             {'params': model.p_vocab.parameters(), 'weight_decay': 0.01},
             {'params': model.p_gen.parameters(), 'weight_decay': 0.01}
