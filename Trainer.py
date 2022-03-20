@@ -458,7 +458,7 @@ class Trainer(object):
             logits[indices_to_remove] = filter_value
         return logits
 
-    def generate(self, out_max_length=64, top_k=30, top_p=0.0, max_length=200):
+    def generate(self, out_max_length=64, top_k=40, top_p=0.9, max_length=200):
         test_loader = self.make_dataloader(0, self.test_data, 1, shuffle=False)
 
         model = torch.load('./model_dict/model.pt').to(self.rank)
