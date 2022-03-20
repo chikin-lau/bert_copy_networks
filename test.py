@@ -8,11 +8,11 @@ def main():
 
     parser.add_argument('--dataset_dir', default='./data',
                         help='directory for dataset')
-    parser.add_argument('--train_file', default='Persona_sample_test.tsv',
+    parser.add_argument('--train_file', default='Persona_val_sample.tsv',
                         help='name of train file')
-    parser.add_argument('--dev_file', default='Persona_sample_test.tsv',
+    parser.add_argument('--dev_file', default='Persona_val_sample.tsv',
                         help='name of dev file')
-    parser.add_argument('--test_file', default='Persona_sample_test.tsv',
+    parser.add_argument('--test_file', default='Persona_val_sample.tsv',
                         help='name of test file')
     parser.add_argument('--vocab_path', default='./model_dict/vocab.txt',
                         help='vocab path for pre-trained model')
