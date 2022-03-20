@@ -2,7 +2,7 @@ import os
 import re
 import csv
 from tqdm import tqdm
-from torch.cuda.amp import autocast as autocast
+from torch.cuda.amp import autocast
 import math
 import numpy as np
 
@@ -34,6 +34,7 @@ class Trainer(object):
         super(Trainer, self).__init__()
         self.dataset_dir = args.dataset_dir
         self.max_len = args.max_len
+        self.tgt_len = args.tgt_len
         self.world_size = args.gpus
         # self.rank = rank
         self.rank = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -108,13 +109,13 @@ class Trainer(object):
                     # encode text without trunction
                     encoded_text = self.tokenizer(text)
                     trg_ids, trg_attention_mask = encoded_text['input_ids'], encoded_text['attention_mask']
-                    if len(trg_ids) > self.max_len:
-                        trg_ids = trg_ids[:self.max_len - 1] + [self.sep_id]
-                        trg_attention_mask = trg_attention_mask[:self.max_len]
+                    if len(trg_ids) > self.tgt_len:
+                        trg_ids = trg_ids[:self.tgt_len - 1] + [self.sep_id]
+                        trg_attention_mask = trg_attention_mask[:self.tgt_len]
 
                     # add padding
                     trg_input, trg_ground, trg_mask = padding_trg(trg_ids[:-1], trg_ids[1:], trg_attention_mask[:-1],
-                                                                  self.max_len)
+                                                                  self.tgt_len)
 
                     trg_input_ids.append(trg_input)
                     trg_ground_ids.append(trg_ground)
@@ -376,7 +377,7 @@ class Trainer(object):
         # return accuracy
         return final_loss
 
-    def test(self, out_max_len=60):
+    def test(self, out_max_len=64):
         test_loader = self.make_dataloader(0, self.test_data, 1, shuffle=False)
 
         model = torch.load('./model_dict/model.pt').to(self.rank)
@@ -387,10 +388,10 @@ class Trainer(object):
             src_input_ids, src_input_masks = batch[0].to(self.rank), batch[1].to(self.rank)
 
             memory = model.encode(src_input_ids, src_input_masks).transpose(0, 1)
-            tgt_input_ids = torch.zeros(src_input_ids.shape[0], self.max_len, dtype=torch.long, device=self.rank)
+            tgt_input_ids = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long, device=self.rank)
             tgt_input_ids[:, 0] = self.cls_id  # bert sentence head
             for j in range(1, out_max_len):
-                tgt_input_masks = torch.zeros(src_input_ids.shape[0], self.max_len, dtype=torch.long, device=self.rank)
+                tgt_input_masks = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long, device=self.rank)
                 tgt_input_masks[:, :j] = 1
 
                 src_attention_masks = ((1 - src_input_masks) > 0)
@@ -413,7 +414,7 @@ class Trainer(object):
             idx += 1
         f.close()
 
-    def greedy_decode(self, model, src_seq, src_mask, out_max_len=60):
+    def greedy_decode(self, model, src_seq, src_mask, out_max_len=64):
         model.eval()
 
         with torch.no_grad():
@@ -457,7 +458,7 @@ class Trainer(object):
             logits[indices_to_remove] = filter_value
         return logits
 
-    def generate(self, out_max_length=40, top_k=30, top_p=0.0, max_length=200):
+    def generate(self, out_max_length=64, top_k=30, top_p=0.0, max_length=200):
         test_loader = self.make_dataloader(0, self.test_data, 1, shuffle=False)
 
         model = torch.load('./model_dict/model.pt').to(self.rank)
@@ -469,11 +470,11 @@ class Trainer(object):
                 src_input_ids, src_input_masks = batch[0].to(self.rank), batch[1].to(self.rank)
 
                 memory = model.encode(src_input_ids, src_input_masks).transpose(0, 1)
-                tgt_input_ids = torch.zeros(src_input_ids.shape[0], self.max_len, dtype=torch.long, device=self.rank)
+                tgt_input_ids = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long, device=self.rank)
                 tgt_input_ids[:, 0] = self.cls_id  # bert sentence head
                 output_ids = []
                 for j in range(1, out_max_length):
-                    tgt_input_masks = torch.zeros(src_input_ids.shape[0], self.max_len, dtype=torch.long,
+                    tgt_input_masks = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long,
                                                   device=self.rank)
                     tgt_input_masks[:, :j] = 1
 
