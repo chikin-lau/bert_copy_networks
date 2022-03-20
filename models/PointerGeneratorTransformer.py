@@ -44,10 +44,11 @@ class PointerGeneratorTransformer(nn.Module):
 
         # Final linear layer + softmax. for probability over target vocabulary
         # self.last_linear = nn.Linear(self.embedding_dim, self.tgt_vocab_size)
-        self.p_vocab = nn.Sequential(
-            nn.Linear(self.embedding_dim * 2, self.embedding_dim),
-            nn.Linear(self.embedding_dim, self.tgt_vocab_size),
-            nn.Softmax(dim=-1))
+        # self.p_vocab = nn.Sequential(
+        #     nn.Linear(self.embedding_dim * 2, self.embedding_dim),
+        #     nn.Linear(self.embedding_dim, self.tgt_vocab_size),
+        #     nn.Softmax(dim=-1))
+        self.p_vocab = nn.Linear(self.embedding_dim, self.tgt_vocab_size)
 
         self.p_gen = nn.Sequential(
             nn.Linear(self.embedding_dim * 3, 1),
@@ -102,7 +103,8 @@ class PointerGeneratorTransformer(nn.Module):
         
         # context vector, [bz, seq_len, embed_dim]
         context_vectors = torch.matmul(attention[-1], hidden_states)
-        vocab_dist = self.p_vocab(torch.cat((decoder_output, context_vectors), dim=-1))
+        # vocab_dist = self.p_vocab(torch.cat((decoder_output, context_vectors), dim=-1))
+        vocab_dist = self.p_vocab(decoder_output)
 
         # total_states for p_gen, total_states => [bz, seq_len, 1]
         total_states = torch.cat((context_vectors, decoder_output, tgt_embed.transpose(0, 1)), dim=-1)
