@@ -8,7 +8,7 @@ def main():
 
     parser.add_argument('--dataset_dir', default='./data',
                         help='directory for dataset')
-    parser.add_argument('--train_file', default='Persona_train_3W.tsv',
+    parser.add_argument('--train_file', default='Persona_train_clean.tsv',
                         help='name of train file')
     parser.add_argument('--dev_file', default='Persona_val_clean.tsv',
                         help='name of dev file')
@@ -57,3 +57,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+# !python train.py --epochs 10 --gpus 1 --train_batch_size 32 --eval_batch_size 16 --max_len 128 --train_file "Persona_train_clean.tsv" --dev_file "Persona_val_clean.tsv"
+# !python test.py --epochs 2

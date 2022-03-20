@@ -261,6 +261,11 @@ class Trainer(object):
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=total_steps / 10,
                                                     num_training_steps=total_steps)
 
+        print(f"encoder lr:{optimizer.state_dict()['param_groups'][0]['initial_lr']}\n"
+              f"tgt_embed lr:{optimizer.state_dict()['param_groups'][1]['initial_lr']}\n"
+              f"other lr:{optimizer.state_dict()['param_groups'][2]['initial_lr']}\n"
+              f"scheduler:linear warmup,warmup_steps={total_steps / 10}")
+
         is_best = False
         curr_valid_loss = 0
         best_valid_loss = float("inf")
