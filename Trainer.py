@@ -240,13 +240,13 @@ class Trainer(object):
         param_optimizer = list(model.named_parameters())
         no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [
-            {'params': model.encoder.parameters(), 'lr': 1e-5, 'weight_decay': 0.01},
-            {'params': model.tgt_embed.parameters(), 'lr': 1e-5, 'weight_decay': 0.01},
+            {'params': model.encoder.parameters(), 'lr': 7e-6, 'weight_decay': 0.01},
+            {'params': model.tgt_embed.parameters(), 'lr': 7e-6, 'weight_decay': 0.01},
             {'params': model.decoder.parameters(), 'weight_decay': 0.01},
             {'params': model.p_vocab.parameters(), 'weight_decay': 0.01},
             {'params': model.p_gen.parameters(), 'weight_decay': 0.01}
         ]
-        optimizer = AdamW(optimizer_grouped_parameters, lr=3e-4, eps=1e-8)
+        optimizer = AdamW(optimizer_grouped_parameters, lr=1e-4, eps=1e-8)
         if self.fp16 == True:
             scaler = torch.cuda.amp.GradScaler()
         # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=4000, num_training_steps=total_steps)
