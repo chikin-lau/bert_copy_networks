@@ -4,6 +4,7 @@ import csv
 from tqdm import tqdm
 from torch.cuda.amp import autocast as autocast
 import math
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -17,10 +18,16 @@ from transformers import AdamW, get_linear_schedule_with_warmup
 
 from models.PointerGeneratorTransformer import PointerGeneratorTransformer
 
+import random
 from utils import *
 from preprocess import *
 from models.model_utils import padding_trg
 
+
+random.seed(2021)
+torch.manual_seed(2021)
+torch.cuda.manual_seed_all(2021)
+np.random.seed(2021)
 
 class Trainer(object):
     def __init__(self, args, rank=0):
