@@ -248,13 +248,13 @@ class Trainer(object):
         param_optimizer = list(model.named_parameters())
         no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [
-            {'params': model.encoder.parameters(), 'lr': 3e-5, 'weight_decay': 0.01},
-            {'params': model.tgt_embed.parameters(), 'lr': 3e-5, 'weight_decay': 0.01},
+            {'params': model.encoder.parameters(), 'lr': 7e-6, 'weight_decay': 0.01},
+            {'params': model.tgt_embed.parameters(), 'lr': 7e-6, 'weight_decay': 0.01},
             {'params': model.decoder.parameters(), 'weight_decay': 0.01},
             {'params': model.p_vocab.parameters(), 'weight_decay': 0.01},
             {'params': model.p_gen.parameters(), 'weight_decay': 0.01}
         ]
-        optimizer = AdamW(optimizer_grouped_parameters, lr=5e-4, eps=1e-8)
+        optimizer = AdamW(optimizer_grouped_parameters, lr=5e-5, eps=1e-8)
         if self.fp16 == True:
             scaler = torch.cuda.amp.GradScaler()
         # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=4000, num_training_steps=total_steps)
@@ -388,9 +388,10 @@ class Trainer(object):
         model = torch.load('./model_dict/model.pt').to(self.rank)
         f = open(os.path.join(self.dataset_dir, 'results.csv'), 'a+', encoding='utf-8')
 
-        idx = 20000
+        # idx = 20000
         for batch in tqdm(test_loader):
             src_input_ids, src_input_masks = batch[0].to(self.rank), batch[1].to(self.rank)
+            trg_ground_ids = batch[3].to(self.rank)
 
             memory = model.encode(src_input_ids, src_input_masks).transpose(0, 1)
             tgt_input_ids = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long, device=self.rank)
@@ -414,9 +415,14 @@ class Trainer(object):
             string = self.decode(tgt_input_ids)[0]
             if len(string) == 0:
                 string = self.decode(src_input_ids)[0]
-            string = re.sub(r"\s{1,}", "", string)
-            f.write(str(idx) + '\t' + string + '\n')
-            idx += 1
+            pred_string = re.sub(r"\s{1,}", "", string)
+
+            src_string = self.decode(src_input_ids)[0]
+            src_string = re.sub(r"\s{1,}", "", src_string)
+            trg_string = self.decode(trg_ground_ids)[0]
+            trg_string = re.sub(r"\s{1,}", "", trg_string)
+
+            print(f"query & persona: {src_string[:150]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
         f.close()
 
     def greedy_decode(self, model, src_seq, src_mask, out_max_len=64):
@@ -469,10 +475,11 @@ class Trainer(object):
         model = torch.load('./model_dict/model.pt').to(self.rank)
         f = open(os.path.join(self.dataset_dir, 'top_k_results.csv'), 'a+', encoding='utf-8')
 
-        idx = 20000
+        # idx = 20000
         with torch.no_grad():
             for batch in tqdm(test_loader):
                 src_input_ids, src_input_masks = batch[0].to(self.rank), batch[1].to(self.rank)
+                trg_ground_ids = batch[3].to(self.rank)
 
                 memory = model.encode(src_input_ids, src_input_masks).transpose(0, 1)
                 tgt_input_ids = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long, device=self.rank)
@@ -503,9 +510,14 @@ class Trainer(object):
                     tgt_input_ids[:, j] = next_token.item()
                     output_ids.append(next_token.item())
                 string = self.tokenizer.decode(torch.tensor(output_ids))
-                string = re.sub(r"\s{1,}", "", string)
-                f.write(str(idx) + '\t' + string + '\n')
-                idx += 1
+
+                pred_string = re.sub(r"\s{1,}", "", string)
+                src_string = self.decode(src_input_ids)[0]
+                src_string = re.sub(r"\s{1,}", "", src_string)
+                trg_string = self.decode(trg_ground_ids)[0]
+                trg_string = re.sub(r"\s{1,}", "", trg_string)
+
+                print(f"query & persona: {src_string[:150]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
             f.close()
 
     def eval(self):
@@ -536,15 +548,16 @@ class Trainer(object):
                 accuracy = float(100.0 * n_correct) / n_word
                 running_loss += loss.item()
 
-                if accuracy < 95.0:
-                    src_string = self.decode(src_input_ids)[0]
-                    src_string = re.sub(r"\s{1,}", "", src_string)
-                    trg_string = self.decode(trg_input_ids)[0]
-                    trg_string = re.sub(r"\s{1,}", "", trg_string)
-                    pred_string = self.decode(predictions)[0]
-                    pred_string = re.sub(r"\s{1,}", "", pred_string)
+                # print predict
+                src_string = self.decode(src_input_ids)[0]
+                src_string = re.sub(r"\s{1,}", "", src_string)
+                trg_string = self.decode(trg_input_ids)[0]
+                trg_string = re.sub(r"\s{1,}", "", trg_string)
+                pred_string = self.decode(predictions)[0]
+                pred_string = re.sub(r"\s{1,}", "", pred_string)
 
-                    f.write(src_string + '\t' + trg_string + '\t' + pred_string + '\n')
+                # f.write(src_string + '\t' + trg_string + '\t' + pred_string + '\n')
+                print(f"query & persona: {src_string[:150]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
 
         loss = running_loss / len(data_loader)
         ppl = math.exp(loss)
