@@ -318,7 +318,7 @@ class Trainer(object):
                     # 更新scalar的缩放信息
                     scaler.update()
                 else:
-                    outputs = model(src_input_ids, src_input_masks, trg_input_ids, trg_input_masks)
+                    outputs = model(src_input_ids, src_input_masks, trg_input_ids, trg_input_masks, src_type_ids)
 
                     loss, n_correct, n_word = self.cal_performance(outputs, trg_ground_ids, smoothing=True)
 
