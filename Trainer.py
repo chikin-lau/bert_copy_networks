@@ -357,7 +357,7 @@ class Trainer(object):
                     best_valid_loss = curr_valid_loss
                     best_valid_epoch = epoch
                     epochs_no_improve = 0
-                    torch.save(model, './model_dict/model.pt')
+                    torch.save(model, f'./model_dict/model.pt')
             if epochs_no_improve > 3:
                 self.logger.info("No best dev loss, stop training.")
                 break
