@@ -89,19 +89,32 @@ class Trainer(object):
                     per = line[0].strip()
                     # add preprocess progress
                     # src = toSimpleChinese(src)
-                    src_data.append(src + per)
+                    src_data.append(src)
                     per_data.append(per)
                     if not is_test:
                         trg = line[2].strip()
                         # trg = toSimpleChinese(trg)
                         trg_data.append(trg)
 
-            encoded_dict = self.tokenizer.batch_encode_plus(src_data, add_special_tokens=True, max_length=self.max_len,
+            query_encoded_dict = self.tokenizer.batch_encode_plus(src_data, add_special_tokens=True, max_length=self.max_len,
                                                             padding='max_length',
                                                             return_attention_mask=True, truncation=True,
                                                             return_tensors='pt')
-            src_input_ids = encoded_dict['input_ids']
-            src_attention_masks = encoded_dict['attention_mask']
+            per_encoded_dict = self.tokenizer.batch_encode_plus(per_data, add_special_tokens=True, max_length=self.max_len,
+                                                            padding='max_length',
+                                                            return_attention_mask=True, truncation=True,
+                                                            return_tensors='pt')
+            query_input_ids = query_encoded_dict['input_ids']
+            query_attention_masks = query_encoded_dict['attention_mask']
+            query_type_ids = query_encoded_dict['token_type_ids'] * 0
+
+            per_input_ids = per_encoded_dict['input_ids']
+            per_attention_masks = per_encoded_dict['attention_mask']
+            per_type_ids = per_encoded_dict['token_type_ids'] * 0 + 1
+
+            src_input_ids = torch.cat([per_input_ids, query_input_ids], -1)
+            src_attention_masks = torch.cat([per_attention_masks, query_attention_masks], -1)
+            src_type_ids = torch.cat([per_type_ids, query_type_ids], -1)
 
             if not is_test:
                 trg_input_ids, trg_ground_ids, trg_attention_masks = [], [], []
@@ -124,7 +137,8 @@ class Trainer(object):
                 data = {
                     'src_input_ids': src_input_ids, 'src_attention_masks': src_attention_masks,
                     'trg_input_ids': torch.tensor(trg_input_ids), 'trg_ground_ids': torch.tensor(trg_ground_ids),
-                    'trg_attention_masks': torch.tensor(trg_attention_masks)
+                    'trg_attention_masks': torch.tensor(trg_attention_masks), 'src_type_ids': src_type_ids,
+                    'per_input_ids': per_input_ids, 'query_input_ids': query_input_ids
                 }
             else:
                 data = {
@@ -174,7 +188,8 @@ class Trainer(object):
         if "trg_input_ids" in data_dict:
             dataset = TensorDataset(data_dict["src_input_ids"], data_dict["src_attention_masks"],
                                     data_dict["trg_input_ids"], data_dict["trg_ground_ids"],
-                                    data_dict["trg_attention_masks"])
+                                    data_dict["trg_attention_masks"], data_dict["src_type_ids"],
+                                    data_dict["per_input_ids"], data_dict["query_input_ids"])
         else:
             dataset = TensorDataset(data_dict["src_input_ids"], data_dict["src_attention_masks"])
         if shuffle:
@@ -279,14 +294,15 @@ class Trainer(object):
             correct_words = 0
             total_words = 0
             for batch in tqdm(train_loader):
-                src_input_ids, src_input_masks = batch[0].to(self.rank), batch[1].to(self.rank)
+                src_input_ids, src_input_masks, src_type_ids = batch[0].to(self.rank), batch[1].to(self.rank), batch[
+                    5].to(self.rank)
                 trg_input_ids, trg_ground_ids, trg_input_masks = batch[2].to(self.rank), batch[3].to(self.rank), batch[
                     4].to(self.rank)
 
                 if self.fp16 == True:
                     # print("fp16")
                     with autocast():
-                        outputs = model(src_input_ids, src_input_masks, trg_input_ids, trg_input_masks)
+                        outputs = model(src_input_ids, src_input_masks, trg_input_ids, trg_input_masks, src_type_ids)
 
                         loss, n_correct, n_word = self.cal_performance(outputs, trg_ground_ids, smoothing=True)
                     # 对loss进行缩放，针对缩放后的loss进行反向传播
@@ -356,12 +372,13 @@ class Trainer(object):
         total_num = 0
         with torch.no_grad():
             for i, batch in enumerate(dev_loader):
-                src_input_ids, src_input_masks = batch[0].to(self.rank), batch[1].to(self.rank)
+                src_input_ids, src_input_masks, src_type_ids = batch[0].to(self.rank), batch[1].to(self.rank), batch[
+                    5].to(self.rank)
                 trg_input_ids, trg_ground_ids, trg_input_masks = batch[2].to(self.rank), batch[3].to(self.rank), batch[
                     4].to(self.rank)
 
                 # Compute output of model
-                output = model(src_input_ids, src_input_masks, trg_input_ids, trg_input_masks)
+                output = model(src_input_ids, src_input_masks, trg_input_ids, trg_input_masks, src_type_ids)
 
                 # Get model predictions
                 predictions = output.topk(1)[1].squeeze()
@@ -390,10 +407,12 @@ class Trainer(object):
 
         # idx = 20000
         for batch in tqdm(test_loader):
-            src_input_ids, src_input_masks = batch[0].to(self.rank), batch[1].to(self.rank)
+            src_input_ids, src_input_masks, src_type_ids = batch[0].to(self.rank), batch[1].to(self.rank), batch[
+                5].to(self.rank)
             trg_ground_ids = batch[3].to(self.rank)
+            per_input_ids, query_input_ids = batch[6].to(self.rank), batch[7].to(self.rank)
 
-            memory = model.encode(src_input_ids, src_input_masks).transpose(0, 1)
+            memory = model.encode(src_input_ids, src_input_masks, src_type_ids).transpose(0, 1)
             tgt_input_ids = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long, device=self.rank)
             tgt_input_ids[:, 0] = self.cls_id  # bert sentence head
             for j in range(1, out_max_len):
@@ -417,12 +436,14 @@ class Trainer(object):
                 string = self.decode(src_input_ids)[0]
             pred_string = re.sub(r"\s{1,}", "", string)
 
-            src_string = self.decode(src_input_ids)[0]
-            src_string = re.sub(r"\s{1,}", "", src_string)
+            per_string = self.decode(per_input_ids)[0]
+            per_string = re.sub(r"\s{1,}", "", per_string)
+            query_string = self.decode(query_input_ids)[0]
+            query_string = re.sub(r"\s{1,}", "", query_string)
             trg_string = self.decode(trg_ground_ids)[0]
             trg_string = re.sub(r"\s{1,}", "", trg_string)
 
-            print(f"query & persona: {src_string[:150]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
+            f.write(f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
         f.close()
 
     def greedy_decode(self, model, src_seq, src_mask, out_max_len=64):
@@ -478,10 +499,12 @@ class Trainer(object):
         # idx = 20000
         with torch.no_grad():
             for batch in tqdm(test_loader):
-                src_input_ids, src_input_masks = batch[0].to(self.rank), batch[1].to(self.rank)
+                src_input_ids, src_input_masks, src_type_ids = batch[0].to(self.rank), batch[1].to(self.rank), batch[
+                    5].to(self.rank)
                 trg_ground_ids = batch[3].to(self.rank)
+                per_input_ids, query_input_ids = batch[6].to(self.rank), batch[7].to(self.rank)
 
-                memory = model.encode(src_input_ids, src_input_masks).transpose(0, 1)
+                memory = model.encode(src_input_ids, src_input_masks, src_type_ids).transpose(0, 1)
                 tgt_input_ids = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long, device=self.rank)
                 tgt_input_ids[:, 0] = self.cls_id  # bert sentence head
                 output_ids = []
@@ -512,12 +535,14 @@ class Trainer(object):
                 string = self.tokenizer.decode(torch.tensor(output_ids))
 
                 pred_string = re.sub(r"\s{1,}", "", string)
-                src_string = self.decode(src_input_ids)[0]
-                src_string = re.sub(r"\s{1,}", "", src_string)
+                per_string = self.decode(per_input_ids)[0]
+                per_string = re.sub(r"\s{1,}", "", per_string)
+                query_string = self.decode(query_input_ids)[0]
+                query_string = re.sub(r"\s{1,}", "", query_string)
                 trg_string = self.decode(trg_ground_ids)[0]
                 trg_string = re.sub(r"\s{1,}", "", trg_string)
 
-                print(f"query & persona: {src_string[:150]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
+                f.write(f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
             f.close()
 
     def eval(self):
@@ -532,12 +557,14 @@ class Trainer(object):
         running_loss = 0
         with torch.no_grad():
             for batch in tqdm(data_loader):
-                src_input_ids, src_input_masks = batch[0].to(self.rank), batch[1].to(self.rank)
+                src_input_ids, src_input_masks, src_type_ids = batch[0].to(self.rank), batch[1].to(self.rank), batch[
+                    5].to(self.rank)
                 trg_input_ids, trg_ground_ids, trg_input_masks = batch[2].to(self.rank), batch[3].to(self.rank), batch[
                     4].to(self.rank)
+                per_input_ids, query_input_ids = batch[6].to(self.rank), batch[7].to(self.rank)
 
                 # Compute output of model
-                output = model(src_input_ids, src_input_masks, trg_input_ids, trg_input_masks)
+                output = model(src_input_ids, src_input_masks, trg_input_ids, trg_input_masks, src_type_ids)
 
                 # Get model predictions
                 predictions = output.topk(1)[1].squeeze()
@@ -549,15 +576,18 @@ class Trainer(object):
                 running_loss += loss.item()
 
                 # print predict
-                src_string = self.decode(src_input_ids)[0]
-                src_string = re.sub(r"\s{1,}", "", src_string)
+                per_string = self.decode(per_input_ids)[0]
+                per_string = re.sub(r"\s{1,}", "", per_string)
+                query_string = self.decode(query_input_ids)[0]
+                query_string = re.sub(r"\s{1,}", "", query_string)
                 trg_string = self.decode(trg_input_ids)[0]
                 trg_string = re.sub(r"\s{1,}", "", trg_string)
                 pred_string = self.decode(predictions)[0]
                 pred_string = re.sub(r"\s{1,}", "", pred_string)
 
                 # f.write(src_string + '\t' + trg_string + '\t' + pred_string + '\n')
-                print(f"query & persona: {src_string[:150]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
+                print(f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
+                f.write(f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
 
         loss = running_loss / len(data_loader)
         ppl = math.exp(loss)

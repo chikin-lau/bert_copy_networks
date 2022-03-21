@@ -62,7 +62,7 @@ class PointerGeneratorTransformer(nn.Module):
         self.tgt_mask = None
         self.mem_mask = None
 
-    def encode(self, src_input_ids, src_attention_masks):
+    def encode(self, src_input_ids, src_attention_masks, src_type_ids):
         """
         Applies embedding, positional encoding and then runs the transformer encoder on the source
         :param src: source tokens batch
@@ -70,7 +70,7 @@ class PointerGeneratorTransformer(nn.Module):
         :return: memory- the encoder hidden states
         """
         # Pass the source to the encoder
-        memory = self.encoder(src_input_ids, attention_mask=src_attention_masks)[0]
+        memory = self.encoder(src_input_ids, attention_mask=src_attention_masks, token_type_ids=src_type_ids)[0]
         return memory
 
     def decode(self, memory, tgt, src, tgt_key_padding_mask=None, memory_key_padding_mask=None, has_mask=True):
@@ -121,12 +121,12 @@ class PointerGeneratorTransformer(nn.Module):
         p = torch.add(p_gen_prob * vocab_dist, p_copy_vocab * (1.0 - p_gen_prob))
         return p
 
-    def forward(self, src_input_ids, src_attention_masks, tgt_input_ids, tgt_attention_masks):
+    def forward(self, src_input_ids, src_attention_masks, tgt_input_ids, tgt_attention_masks, src_type_ids):
         """Take in and process masked source/target sequences.
 		"""
 
         # using pre-trained bert as encoder, shape of output => [batch size, seq_len, embed_dim]
-        memory = self.encode(src_input_ids, src_attention_masks).transpose(0, 1)
+        memory = self.encode(src_input_ids, src_attention_masks, src_type_ids).transpose(0, 1)
         # change padding mask to match the form of torch.nn.Transformer
         src_key_padding_masks = ((1 - src_attention_masks) > 0)
         tgt_key_padding_masks = ((1 - tgt_attention_masks) > 0)
