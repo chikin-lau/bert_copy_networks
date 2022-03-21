@@ -598,7 +598,7 @@ class Trainer(object):
                 predictions = predictions * trg_input_masks
 
                 # Compute loss
-                loss, n_correct, n_word = self.cal_performance(output, trg_ground_ids, smoothing=True)
+                loss, n_correct, n_word = self.cal_performance(output, trg_ground_ids, smoothing=False)
                 accuracy = float(100.0 * n_correct) / n_word
                 running_loss += loss.item()
 
