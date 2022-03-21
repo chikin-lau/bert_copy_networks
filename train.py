@@ -8,9 +8,9 @@ def main():
 
     parser.add_argument('--dataset_dir', default='./data',
                         help='directory for dataset')
-    parser.add_argument('--train_file', default='Persona_train_clean.tsv',
+    parser.add_argument('--train_file', default='Persona_train_1W.tsv',
                         help='name of train file')
-    parser.add_argument('--dev_file', default='Persona_val_clean.tsv',
+    parser.add_argument('--dev_file', default='Persona_val_sample.tsv',
                         help='name of dev file')
     parser.add_argument('--test_file', default='Persona_test_deepclean.tsv',
                         help='name of test file')

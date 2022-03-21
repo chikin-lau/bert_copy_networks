@@ -5,6 +5,7 @@ from tqdm import tqdm
 from torch.cuda.amp import autocast
 import math
 import numpy as np
+from evaluations import eval_distinct, corpus_bleu
 
 import torch
 import torch.nn as nn
@@ -405,7 +406,8 @@ class Trainer(object):
         model = torch.load('./model_dict/model.pt').to(self.rank)
         f = open(os.path.join(self.dataset_dir, 'results.csv'), 'a+', encoding='utf-8')
 
-        # idx = 20000
+        generated_token = []
+        gold_token = []
         for batch in tqdm(test_loader):
             src_input_ids, src_input_masks, src_type_ids = batch[0].to(self.rank), batch[1].to(self.rank), batch[
                 5].to(self.rank)
@@ -443,7 +445,19 @@ class Trainer(object):
             trg_string = self.decode(trg_ground_ids)[0]
             trg_string = re.sub(r"\s{1,}", "", trg_string)
 
+            generated_token += pred_string
+            gold_token += trg_string
+
             f.write(f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
+
+        bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2 = self.automated_metrics(generated_token, gold_token)
+        f.write('BLEU 1-gram: %f\n' % bleu_1)
+        f.write('BLEU 2-gram: %f\n' % bleu_2)
+        f.write('BLEU 3-gram: %f\n' % bleu_3)
+        f.write('BLEU 4-gram: %f\n' % bleu_4)
+        f.write('F1-score: %f\n' % F1)
+        f.write(f"Distinct-1 (hypothesis, reference): {round(hyp_d1, 4)}, {round(ref_d1, 4)}\n")
+        f.write(f"Distinct-2 (hypothesis, reference): {round(hyp_d2, 4)}, {round(ref_d2, 4)}\n")
         f.close()
 
     def greedy_decode(self, model, src_seq, src_mask, out_max_len=64):
@@ -496,7 +510,8 @@ class Trainer(object):
         model = torch.load('./model_dict/model.pt').to(self.rank)
         f = open(os.path.join(self.dataset_dir, 'top_k_results.csv'), 'a+', encoding='utf-8')
 
-        # idx = 20000
+        generated_token = []
+        gold_token = []
         with torch.no_grad():
             for batch in tqdm(test_loader):
                 src_input_ids, src_input_masks, src_type_ids = batch[0].to(self.rank), batch[1].to(self.rank), batch[
@@ -542,7 +557,19 @@ class Trainer(object):
                 trg_string = self.decode(trg_ground_ids)[0]
                 trg_string = re.sub(r"\s{1,}", "", trg_string)
 
+                generated_token += pred_string
+                gold_token += trg_string
+
                 f.write(f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
+
+            bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2 = self.automated_metrics(generated_token,gold_token)
+            f.write('BLEU 1-gram: %f\n' % bleu_1)
+            f.write('BLEU 2-gram: %f\n' % bleu_2)
+            f.write('BLEU 3-gram: %f\n' % bleu_3)
+            f.write('BLEU 4-gram: %f\n' % bleu_4)
+            f.write('F1-score: %f\n' % F1)
+            f.write(f"Distinct-1 (hypothesis, reference): {round(hyp_d1, 4)}, {round(ref_d1, 4)}\n")
+            f.write(f"Distinct-2 (hypothesis, reference): {round(hyp_d2, 4)}, {round(ref_d2, 4)}\n")
             f.close()
 
     def eval(self):
@@ -595,3 +622,81 @@ class Trainer(object):
         f.write(f"eval loss: {loss:.4f}, ppl: {ppl:.2f}, accuracy: {accuracy:.2f}%")
 
         f.close()
+
+
+    def automated_metrics(self, generated_token, gold_token):
+        # bleu-1和bleu-2
+        assert len(generated_token) == len(gold_token)
+        reference = []
+        candidate = []
+        for i in range(0, len(generated_token)):
+            reference.append([self.tokenizer.tokenize(gold_token[i])])
+            candidate.append(self.tokenizer.tokenize(generated_token[i]))
+        bleu_1 = corpus_bleu(reference, candidate, weights=(1, 0, 0, 0))
+        bleu_2 = corpus_bleu(reference, candidate, weights=(0.5, 0.5, 0, 0))
+        bleu_3 = corpus_bleu(reference, candidate, weights=(0.33, 0.33, 0.33, 0))
+        bleu_4 = corpus_bleu(reference, candidate, weights=(0.25, 0.25, 0.25, 0.25))
+        print('BLEU 1-gram: %f' % bleu_1)
+        print('BLEU 2-gram: %f' % bleu_2)
+        print('BLEU 3-gram: %f' % bleu_3)
+        print('BLEU 4-gram: %f' % bleu_4)
+
+        # F1-score
+        assert len(generated_token) == len(gold_token)
+        F1 = 0
+        for i in range(0, len(generated_token)):
+            reference = tokenizer.tokenize(generated_token[i])
+            candidate = tokenizer.tokenize(gold_token[i])
+
+            c = 0
+            r_list = []
+            for j in range(0, len(candidate)):
+                for k in range(0, len(reference)):
+                    if candidate[j] == reference[k] and len(r_list) == 0:
+                        c += 1
+                        r_list.append(k)
+                        break
+                    false_num = 0
+                    for s in [k != rl for rl in r_list]:
+                        if not s:
+                            false_num += 1
+                    if candidate[j] == reference[k] and false_num < 1:
+                        c += 1
+                        r_list.append(k)
+                        break
+
+            r = 0
+            c_list = []
+            for j in range(0, len(reference)):
+                for k in range(0, len(candidate)):
+                    if reference[j] == candidate[k] and len(c_list) == 0:
+                        r += 1
+                        c_list.append(k)
+                        break
+                    false_num = 0
+                    for s in [k != cl for cl in c_list]:
+                        if not s:
+                            false_num += 1
+                    if reference[j] == candidate[k] and false_num < 1:
+                        r += 1
+                        c_list.append(k)
+                        break
+
+            precision = c / len(candidate)
+            recall = r / len(reference)
+            if (precision + recall) == 0:
+                F1 = F1 + 0
+            else:
+                F1 = F1 + 2 * (precision * recall) / (precision + recall)
+
+        F1 = F1 / len(generated_token)
+        print('F1-score: %f' % F1)
+
+        # distinct-1和distinct-2
+        hyp_d1, hyp_d2 = eval_distinct(generated_token)
+        ref_d1, ref_d2 = eval_distinct(gold_token)
+
+        print(f"Distinct-1 (hypothesis, reference): {round(hyp_d1, 4)}, {round(ref_d1, 4)}")
+        print(f"Distinct-2 (hypothesis, reference): {round(hyp_d2, 4)}, {round(ref_d2, 4)}")
+
+        return bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2
