@@ -411,6 +411,8 @@ class Trainer(object):
 
         generated_token = []
         gold_token = []
+        persona_token = []
+        query_token = []
         for batch in tqdm(test_loader):
             src_input_ids, src_input_masks, src_type_ids = batch[0].to(self.rank), batch[1].to(self.rank), batch[
                 5].to(self.rank)
@@ -434,25 +436,41 @@ class Trainer(object):
 
                 tgt_input_ids[:, j] = ids[:, -1]
 
-                if ids[:, -1] == self.sep_id:
-                    break
-            string = self.decode(tgt_input_ids)
-            if len(string) == 0:
-                string = self.decode(src_input_ids)
-            pred_string = string
+                # if ids[:, -1] == self.sep_id:
+                #     break
 
-            per_string = self.decode(per_input_ids)[0]
-            per_string = re.sub(r"\s{1,}", "", per_string)
-            query_string = self.decode(query_input_ids)[0]
-            query_string = re.sub(r"\s{1,}", "", query_string)
-            trg_string = self.decode(trg_ground_ids)
+            # mask掉SEP后面的字
+            sen_len = [out_max_len-1] * tgt_input_ids.shape[0]
+            for i in range(0, tgt_input_ids.shape[0]):
+                for j in range(0, tgt_input_ids.shape[1]):
+                    if tgt_input_ids[i][j] == self.tokenizer.convert_tokens_to_ids('[SEP]'):
+                        sen_len[i] = j
+                        break
+
+            response_mask = torch.ones_like(tgt_input_ids)
+            for i in range(0, response_mask.shape[0]):
+                for j in range(0, response_mask.shape[1]):
+                    if j > sen_len[i]:
+                        response_mask[i][j] = 0
+
+            #     print("response_idx:",response_idx.shape)
+            #     print("response_mask:",response_mask.shape)
+            tgt_input_ids = tgt_input_ids * response_mask
+
+            generated_token += self.decode(tgt_input_ids)
+            persona_token += self.decode(per_input_ids)
+            # per_string = re.sub(r"\s{1,}", "", per_string)
+            query_token += self.decode(query_input_ids)
+            # query_string = re.sub(r"\s{1,}", "", query_string)
+            gold_token += self.decode(trg_ground_ids)
             # trg_string = re.sub(r"\s{1,}", "", trg_string)
 
-            generated_token += pred_string
-            gold_token += trg_string
-
-            f.write(
-                f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n\n")
+        for p, q, g, r in zip(persona_token, query_token, gold_token, generated_token):
+            p = re.sub(r"\s{1,}", "", p)
+            q = re.sub(r"\s{1,}", "", q)
+            g = re.sub(r"\s{1,}", "", g)
+            r = re.sub(r"\s{1,}", "", r)
+            f.write(f"persona:{p}\nquery:{q}\ngold:{g}\nresponse:{r}\n\n")
 
         bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2 = self.automated_metrics(generated_token,
                                                                                                     gold_token)
@@ -509,6 +527,51 @@ class Trainer(object):
             logits[indices_to_remove] = filter_value
         return logits
 
+    def sample_sequence(self, logits, top_k=0, top_p=0, threshold=-float('Inf'), filter_value=-float('Inf'), device="cpu"):
+        """ Filter a distribution of logits using top-k, top-p (nucleus) and/or threshold filtering
+            This funtion can work for batch size n
+            Args:
+                logits: logits distribution shape (vocabulary size)
+                top_k: <=0: no filtering, >0: keep only top k tokens with highest probability.
+                top_p: <=0.0: no filtering, >0.0: keep only a subset S of candidates, where S is the smallest subset
+                    whose total probability mass is greater than or equal to the threshold top_p.
+                    In practice, we select the highest probability tokens whose cumulative probability mass exceeds
+                    the threshold top_p
+                    Nucleus filtering is described in Holtzman et al. (http://arxiv.org/abs/1904.09751)
+                threshold: a minimal threshold to keep logits
+        """
+        #     assert logits.dim() == 1  # Only work for batch size 1 for now - could update but it would obfuscate a bit the code
+        top_k = min(top_k, logits.size(-1))
+        if top_k > 0:
+            # Remove all tokens with a probability less than the last token in the top-k tokens
+            indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
+            logits[indices_to_remove] = filter_value
+
+        if top_p > 0.0:
+            # Compute cumulative probabilities of sorted tokens
+            sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+            cumulative_probabilities = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+
+            # Remove tokens with cumulative probability above the threshold
+            sorted_indices_to_remove = cumulative_probabilities > top_p
+            # Shift the indices to the right to keep also the first token above the threshold
+            sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+            sorted_indices_to_remove[..., 0] = 0
+
+            # Back to unsorted indices and set them to -infinity
+            sorted_logits[sorted_indices_to_remove] = filter_value
+
+            logits = torch.zeros(logits.shape, device=device).scatter_(-1, sorted_indices, sorted_logits)  # (1, V)
+
+        indices_to_remove = logits < threshold
+        logits[indices_to_remove] = filter_value
+
+        # logits = F.softmax(logits, dim=-1)
+        #
+        # result = torch.multinomial(logits, 1)  # [batch_size,1]
+
+        return logits
+
     def generate(self, out_max_length=64, top_k=40, top_p=0.9, max_length=200):
         test_loader = self.make_dataloader(0, self.test_data, 1, shuffle=False)
 
@@ -517,6 +580,8 @@ class Trainer(object):
 
         generated_token = []
         gold_token = []
+        persona_token = []
+        query_token = []
         with torch.no_grad():
             for batch in tqdm(test_loader):
                 src_input_ids, src_input_masks, src_type_ids = batch[0].to(self.rank), batch[1].to(self.rank), batch[
@@ -527,7 +592,7 @@ class Trainer(object):
                 memory = model.encode(src_input_ids, src_input_masks, src_type_ids).transpose(0, 1)
                 tgt_input_ids = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long, device=self.rank)
                 tgt_input_ids[:, 0] = self.cls_id  # bert sentence head
-                output_ids = []
+                output_ids = torch.LongTensor([[self.cls_id]]).repeat(src_input_ids.shape[0], 1).to(self.rank)
                 for j in range(1, out_max_length):
                     tgt_input_masks = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long,
                                                   device=self.rank)
@@ -539,34 +604,54 @@ class Trainer(object):
                     scores = model.decode(memory, tgt_input_ids[:, :j], src_input_ids, tgt_attention_masks[:, :j],
                                           src_attention_masks)
 
-                    logit_score = torch.log_softmax(scores[:, -1], dim=-1).squeeze(0)
-                    logit_score[self.unk_id] = -float('Inf')
+                    logit_score = torch.log_softmax(scores[:, -1], dim=-1)
+                    for i in range(0, len(logit_score)):
+                        logit_score[i][self.unk_id] = -float('Inf')
 
-                    # 对于已生成的结果generated中的每个token添加一个重复惩罚项，降低其生成概率
-                    for id_ in set(output_ids):
-                        logit_score[id_] /= 2.0
+                        # 对于已生成的结果generated中的每个token添加一个重复惩罚项，降低其生成概率
+                        for id_ in set(output_ids[i]):
+                            logit_score[i][int(id_.item())] /= 2.0
 
-                    filtered_logits = self.top_k_top_p_filtering(logit_score, top_k=top_k, top_p=top_p)
+                    # filtered_logits = self.top_k_top_p_filtering(logit_score, top_k=top_k, top_p=top_p)
+                    filtered_logits = self.sample_sequence(logit_score, top_k=top_k, top_p=top_p, device=self.rank)
                     next_token = torch.multinomial(F.softmax(filtered_logits, dim=-1), num_samples=1)
-                    if self.sep_id == next_token.item():
-                        break
-                    tgt_input_ids[:, j] = next_token.item()
-                    output_ids.append(next_token.item())
-                string = self.decode(torch.tensor([output_ids]))
-                pred_string = string
+                    # if self.sep_id == next_token.item():
+                    #     break
+                    tgt_input_ids[:, j] = next_token
+                    output_ids = torch.cat([output_ids, next_token], -1)
 
-                per_string = self.decode(per_input_ids)[0]
-                per_string = re.sub(r"\s{1,}", "", per_string)
-                query_string = self.decode(query_input_ids)[0]
-                query_string = re.sub(r"\s{1,}", "", query_string)
-                trg_string = self.decode(trg_ground_ids)
+                # mask掉SEP后面的字
+                sen_len = [out_max_len - 1] * tgt_input_ids.shape[0]
+                for i in range(0, tgt_input_ids.shape[0]):
+                    for j in range(0, tgt_input_ids.shape[1]):
+                        if tgt_input_ids[i][j] == self.tokenizer.convert_tokens_to_ids('[SEP]'):
+                            sen_len[i] = j
+                            break
+
+                response_mask = torch.ones_like(tgt_input_ids)
+                for i in range(0, response_mask.shape[0]):
+                    for j in range(0, response_mask.shape[1]):
+                        if j > sen_len[i]:
+                            response_mask[i][j] = 0
+
+                #     print("response_idx:",response_idx.shape)
+                #     print("response_mask:",response_mask.shape)
+                tgt_input_ids = tgt_input_ids * response_mask
+
+                generated_token += self.decode(tgt_input_ids)
+                persona_token += self.decode(per_input_ids)
+                # per_string = re.sub(r"\s{1,}", "", per_string)
+                query_token += self.decode(query_input_ids)
+                # query_string = re.sub(r"\s{1,}", "", query_string)
+                gold_token += self.decode(trg_ground_ids)
                 # trg_string = re.sub(r"\s{1,}", "", trg_string)
 
-                generated_token += pred_string
-                gold_token += trg_string
-
-                f.write(
-                    f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n\n")
+            for p, q, g, r in zip(persona_token, query_token, gold_token, generated_token):
+                p = re.sub(r"\s{1,}", "", p)
+                q = re.sub(r"\s{1,}", "", q)
+                g = re.sub(r"\s{1,}", "", g)
+                r = re.sub(r"\s{1,}", "", r)
+                f.write(f"persona:{p}\nquery:{q}\ngold:{g}\nresponse:{r}\n\n")
 
             bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2 = self.automated_metrics(generated_token,
                                                                                                         gold_token)
