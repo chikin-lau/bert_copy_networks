@@ -30,6 +30,7 @@ torch.manual_seed(2021)
 torch.cuda.manual_seed_all(2021)
 np.random.seed(2021)
 
+
 class Trainer(object):
     def __init__(self, args, rank=0):
         super(Trainer, self).__init__()
@@ -54,10 +55,10 @@ class Trainer(object):
         self.sep_id = self.vocab['[SEP]']
         self.unk_id = self.vocab['[UNK]']
 
-        self.train_data = self.load_data(args.train_file, args.train_file.split(".")[0]+".pt", is_test=False)
-        self.dev_data = self.load_data(args.dev_file, args.dev_file.split(".")[0]+".pt", is_test=False)
+        self.train_data = self.load_data(args.train_file, args.train_file.split(".")[0] + ".pt", is_test=False)
+        self.dev_data = self.load_data(args.dev_file, args.dev_file.split(".")[0] + ".pt", is_test=False)
 
-        self.test_data = self.load_data(args.test_file, args.test_file.split(".")[0]+".pt")
+        self.test_data = self.load_data(args.test_file, args.test_file.split(".")[0] + ".pt")
         self.model = PointerGeneratorTransformer(
             rank=self.rank, src_vocab_size=self.vocab_size,
             tgt_vocab_size=self.vocab_size, inv_vocab=self.inv_vocab,
@@ -97,14 +98,16 @@ class Trainer(object):
                         # trg = toSimpleChinese(trg)
                         trg_data.append(trg)
 
-            query_encoded_dict = self.tokenizer.batch_encode_plus(src_data, add_special_tokens=True, max_length=self.max_len,
-                                                            padding='max_length',
-                                                            return_attention_mask=True, truncation=True,
-                                                            return_tensors='pt')
-            per_encoded_dict = self.tokenizer.batch_encode_plus(per_data, add_special_tokens=True, max_length=self.max_len,
-                                                            padding='max_length',
-                                                            return_attention_mask=True, truncation=True,
-                                                            return_tensors='pt')
+            query_encoded_dict = self.tokenizer.batch_encode_plus(src_data, add_special_tokens=True,
+                                                                  max_length=self.max_len,
+                                                                  padding='max_length',
+                                                                  return_attention_mask=True, truncation=True,
+                                                                  return_tensors='pt')
+            per_encoded_dict = self.tokenizer.batch_encode_plus(per_data, add_special_tokens=True,
+                                                                max_length=self.max_len,
+                                                                padding='max_length',
+                                                                return_attention_mask=True, truncation=True,
+                                                                return_tensors='pt')
             query_input_ids = query_encoded_dict['input_ids']
             query_attention_masks = query_encoded_dict['attention_mask']
             query_type_ids = query_encoded_dict['token_type_ids'] * 0
@@ -433,24 +436,26 @@ class Trainer(object):
 
                 if ids[:, -1] == self.sep_id:
                     break
-            string = self.decode(tgt_input_ids)[0]
+            string = self.decode(tgt_input_ids)
             if len(string) == 0:
-                string = self.decode(src_input_ids)[0]
-            pred_string = re.sub(r"\s{1,}", "", string)
+                string = self.decode(src_input_ids)
+            pred_string = string
 
             per_string = self.decode(per_input_ids)[0]
             per_string = re.sub(r"\s{1,}", "", per_string)
             query_string = self.decode(query_input_ids)[0]
             query_string = re.sub(r"\s{1,}", "", query_string)
-            trg_string = self.decode(trg_ground_ids)[0]
-            trg_string = re.sub(r"\s{1,}", "", trg_string)
+            trg_string = self.decode(trg_ground_ids)
+            # trg_string = re.sub(r"\s{1,}", "", trg_string)
 
             generated_token += pred_string
             gold_token += trg_string
 
-            f.write(f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n\n")
+            f.write(
+                f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n\n")
 
-        bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2 = self.automated_metrics(generated_token, gold_token)
+        bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2 = self.automated_metrics(generated_token,
+                                                                                                    gold_token)
         f.write('BLEU 1-gram: %f\n' % bleu_1)
         f.write('BLEU 2-gram: %f\n' % bleu_2)
         f.write('BLEU 3-gram: %f\n' % bleu_3)
@@ -547,22 +552,24 @@ class Trainer(object):
                         break
                     tgt_input_ids[:, j] = next_token.item()
                     output_ids.append(next_token.item())
-                string = self.tokenizer.decode(torch.tensor(output_ids))
+                string = self.decode(torch.tensor([output_ids]))
+                pred_string = string
 
-                pred_string = re.sub(r"\s{1,}", "", string)
                 per_string = self.decode(per_input_ids)[0]
                 per_string = re.sub(r"\s{1,}", "", per_string)
                 query_string = self.decode(query_input_ids)[0]
                 query_string = re.sub(r"\s{1,}", "", query_string)
-                trg_string = self.decode(trg_ground_ids)[0]
-                trg_string = re.sub(r"\s{1,}", "", trg_string)
+                trg_string = self.decode(trg_ground_ids)
+                # trg_string = re.sub(r"\s{1,}", "", trg_string)
 
                 generated_token += pred_string
                 gold_token += trg_string
 
-                f.write(f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
+                f.write(
+                    f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
 
-            bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2 = self.automated_metrics(generated_token,gold_token)
+            bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2 = self.automated_metrics(generated_token,
+                                                                                                        gold_token)
             f.write('BLEU 1-gram: %f\n' % bleu_1)
             f.write('BLEU 2-gram: %f\n' % bleu_2)
             f.write('BLEU 3-gram: %f\n' % bleu_3)
@@ -613,8 +620,10 @@ class Trainer(object):
                 pred_string = re.sub(r"\s{1,}", "", pred_string)
 
                 # f.write(src_string + '\t' + trg_string + '\t' + pred_string + '\n')
-                print(f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n\n")
-                f.write(f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n\n")
+                print(
+                    f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n\n")
+                f.write(
+                    f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n\n")
 
         loss = running_loss / len(data_loader)
         ppl = math.exp(loss)
@@ -622,7 +631,6 @@ class Trainer(object):
         f.write(f"eval loss: {loss:.4f}, ppl: {ppl:.2f}, accuracy: {accuracy:.2f}%")
 
         f.close()
-
 
     def automated_metrics(self, generated_token, gold_token):
         # bleu-score
@@ -645,8 +653,8 @@ class Trainer(object):
         assert len(generated_token) == len(gold_token)
         F1 = 0
         for i in range(0, len(generated_token)):
-            reference = tokenizer.tokenize(generated_token[i])
-            candidate = tokenizer.tokenize(gold_token[i])
+            reference = self.tokenizer.tokenize(generated_token[i])
+            candidate = self.tokenizer.tokenize(gold_token[i])
 
             c = 0
             r_list = []
