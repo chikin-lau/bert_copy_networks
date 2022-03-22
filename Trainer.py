@@ -566,7 +566,7 @@ class Trainer(object):
                 gold_token += trg_string
 
                 f.write(
-                    f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
+                    f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n\n")
 
             bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2 = self.automated_metrics(generated_token,
                                                                                                         gold_token)
@@ -621,7 +621,7 @@ class Trainer(object):
 
                 # f.write(src_string + '\t' + trg_string + '\t' + pred_string + '\n')
                 print(
-                    f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n\n")
+                    f"\npersona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n\n")
                 f.write(
                     f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n\n")
 
