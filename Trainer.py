@@ -448,7 +448,7 @@ class Trainer(object):
             generated_token += pred_string
             gold_token += trg_string
 
-            f.write(f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
+            f.write(f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n\n")
 
         bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2 = self.automated_metrics(generated_token, gold_token)
         f.write('BLEU 1-gram: %f\n' % bleu_1)
@@ -613,8 +613,8 @@ class Trainer(object):
                 pred_string = re.sub(r"\s{1,}", "", pred_string)
 
                 # f.write(src_string + '\t' + trg_string + '\t' + pred_string + '\n')
-                print(f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
-                f.write(f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n")
+                print(f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n\n")
+                f.write(f"persona: {per_string[:150]}\nquery: {query_string[:100]}\ngold: {trg_string[:100]}\nresponse: {pred_string[:100]}\n\n")
 
         loss = running_loss / len(data_loader)
         ppl = math.exp(loss)
@@ -625,7 +625,7 @@ class Trainer(object):
 
 
     def automated_metrics(self, generated_token, gold_token):
-        # bleu-1和bleu-2
+        # bleu-score
         assert len(generated_token) == len(gold_token)
         reference = []
         candidate = []

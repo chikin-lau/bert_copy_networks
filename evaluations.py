@@ -11,6 +11,7 @@ from collections import Counter
 from itertools import chain
 import json
 import codecs
+import warnings
 
 """BLEU score implementation copied from NLTK 3.4.3"""
 try:
@@ -32,9 +33,9 @@ def pad_sequence(sequence, n, pad_left=False, pad_right=False,
                  left_pad_symbol=None, right_pad_symbol=None):
     sequence = iter(sequence)
     if pad_left:
-        sequence = chain((left_pad_symbol,) * (n-1), sequence)
+        sequence = chain((left_pad_symbol,) * (n - 1), sequence)
     if pad_right:
-        sequence = chain(sequence, (right_pad_symbol,) * (n-1))
+        sequence = chain(sequence, (right_pad_symbol,) * (n - 1))
     return sequence
 
 
@@ -118,6 +119,7 @@ def corpus_bleu(list_of_references, hypotheses, weights=(0.25, 0.25, 0.25, 0.25)
     s = bp * math.exp(math.fsum(s))
     return s
 
+
 def modified_precision(references, hypothesis, n):
     # Extracts all ngrams in hypothesis
     # Set an empty Counter if hypothesis is empty.
@@ -168,6 +170,15 @@ class SmoothingFunction:
         self.alpha = alpha
         self.k = k
 
+    def method0(self, p_n, *args, **kwargs):
+        """
+        No smoothing.
+        """
+        p_n_new = []
+        for i, p_i in enumerate(p_n):
+            p_n_new.append(p_i)
+        return p_n_new
+
     def method1(self, p_n, *args, **kwargs):
         """
         Smoothing method 1: Add *epsilon* counts to precision with 0 counts.
@@ -209,7 +220,8 @@ def eval_bleu(ref_resp, hyps_resp):
 '''
     random_bleu = eval_bleu(random_ref_resp, random_hyps_resp)
     biased_bleu = eval_bleu(biased_ref_resp, biased_hyps_resp)
-'''    
+'''
+
 
 def count_ngram(hyps_resp, n):
     """
@@ -258,15 +270,16 @@ def eval_distinct_avg(hyps_resp):
 
     return dist1, dist2, (dist1 + dist2) / 2.0
 
+
 def eval_distinct(corpus):
     unigrams = []
     bigrams = []
-    for n,rep in enumerate(corpus):
+    for n, rep in enumerate(corpus):
         rep = rep.strip()
         temp = rep.split(' ')
         unigrams += temp
-        for i in range(len(temp)-1):
-            bigrams.append(temp[i] + ' ' + temp[i+1])
+        for i in range(len(temp) - 1):
+            bigrams.append(temp[i] + ' ' + temp[i + 1])
     distink_1 = len(set(unigrams)) * 1.0 / len(unigrams)
     distink_2 = len(set(bigrams)) * 1.0 / len(bigrams)
     return distink_1, distink_2
