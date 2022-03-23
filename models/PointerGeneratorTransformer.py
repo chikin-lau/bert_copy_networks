@@ -30,8 +30,8 @@ class PointerGeneratorTransformer(nn.Module):
         self.embedding_dim = embedding_dim
         
         # Encoder layers
-        self.config = BertConfig.from_pretrained('bert-base-chinese')
-        self.encoder = BertModel.from_pretrained('bert-base-chinese')
+        self.config = BertConfig.from_pretrained('./bert-base-chinese')
+        self.encoder = BertModel.from_pretrained('./bert-base-chinese')
         
         # Source and target embeddings
         # using word embeddings from pre-trained bert

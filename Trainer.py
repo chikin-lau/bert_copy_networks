@@ -48,7 +48,7 @@ class Trainer(object):
         self.lr = args.lr
         self.pre_lr = args.pre_lr
 
-        self.tokenizer = BertTokenizer.from_pretrained('bert-base-chinese')
+        self.tokenizer = BertTokenizer.from_pretrained('./bert-base-chinese')
         self.vocab = self.tokenizer.vocab
         self.inv_vocab = {v: k for k, v in self.vocab.items()}
         self.vocab_size = len(self.vocab)
@@ -622,7 +622,7 @@ class Trainer(object):
                     next_token = torch.multinomial(F.softmax(filtered_logits, dim=-1), num_samples=1)
                     # if self.sep_id == next_token.item():
                     #     break
-                    tgt_input_ids[:, j] = next_token
+                    tgt_input_ids[:, j] = next_token.squeeze(-1)
                     output_ids = torch.cat([output_ids, next_token], -1)
 
                 # mask掉SEP后面的字
