@@ -48,7 +48,7 @@ class Trainer(object):
         self.lr = args.lr
         self.pre_lr = args.pre_lr
 
-        self.tokenizer = BertTokenizer.from_pretrained('./bert-base-chinese')
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-chinese')
         self.vocab = self.tokenizer.vocab
         self.inv_vocab = {v: k for k, v in self.vocab.items()}
         self.vocab_size = len(self.vocab)
