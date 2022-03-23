@@ -41,9 +41,12 @@ class Trainer(object):
         # self.rank = rank
         self.rank = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.train_batch_size = args.train_batch_size
+        self.dev_batch_size = args.dev_batch_size
         self.eval_batch_size = args.eval_batch_size
         self.epochs = args.epochs
         self.label_smooth = args.label_smooth
+        self.lr = args.lr
+        self.p_lr = args.p_lr
 
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-chinese')
         self.vocab = self.tokenizer.vocab
@@ -65,6 +68,7 @@ class Trainer(object):
             pad_id=self.pad_id, max_len=self.max_len
         )
         self.fp16 = args.fp16
+        self.is_schedule = args.is_schedule
 
         # initialize model parameters
         self.init_parameters()
@@ -249,7 +253,7 @@ class Trainer(object):
 
     def train(self):
         train_loader = self.make_dataloader(0, self.train_data, self.train_batch_size)
-        dev_loader = self.make_dataloader(0, self.dev_data, self.eval_batch_size)
+        dev_loader = self.make_dataloader(0, self.dev_data, self.dev_batch_size)
 
         if os.path.exists('./model_dict/model.pt'):
             print("loading the checkpoint")
@@ -267,17 +271,17 @@ class Trainer(object):
         param_optimizer = list(model.named_parameters())
         no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [
-            {'params': model.encoder.parameters(), 'lr': 7e-6, 'weight_decay': 0.01},
-            {'params': model.tgt_embed.parameters(), 'lr': 7e-6, 'weight_decay': 0.01},
+            {'params': model.encoder.parameters(), 'lr': self.p_lr, 'weight_decay': 0.01},
+            {'params': model.tgt_embed.parameters(), 'lr': self.p_lr, 'weight_decay': 0.01},
             {'params': model.decoder.parameters(), 'weight_decay': 0.01},
             {'params': model.p_vocab.parameters(), 'weight_decay': 0.01},
             {'params': model.p_gen.parameters(), 'weight_decay': 0.01}
         ]
-        optimizer = AdamW(optimizer_grouped_parameters, lr=5e-5, eps=1e-8)
-        if self.fp16 == True:
+        optimizer = AdamW(optimizer_grouped_parameters, lr=self.lr, eps=1e-8)
+        if self.fp16:
             scaler = torch.cuda.amp.GradScaler()
-        # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=4000, num_training_steps=total_steps)
-        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=total_steps / 10,
+        if self.is_schedule:
+            scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=total_steps / 10,
                                                     num_training_steps=total_steps)
 
         print(f"encoder lr:{optimizer.state_dict()['param_groups'][0]['initial_lr']}\n"
@@ -303,7 +307,7 @@ class Trainer(object):
                 trg_input_ids, trg_ground_ids, trg_input_masks = batch[2].to(self.rank), batch[3].to(self.rank), batch[
                     4].to(self.rank)
 
-                if self.fp16 == True:
+                if self.fp16:
                     # print("fp16")
                     with autocast():
                         outputs = model(src_input_ids, src_input_masks, trg_input_ids, trg_input_masks, src_type_ids)
@@ -334,7 +338,8 @@ class Trainer(object):
                 # print("lr[0]:",optimizer.state_dict()['param_groups'][0]["lr"])
                 # print("initial_lr[0]:",optimizer.state_dict()['param_groups'][0]["initial_lr"])
                 optimizer.zero_grad()
-                scheduler.step()
+                if self.is_schedule:
+                    scheduler.step()
 
                 running_loss += loss.item()
 
@@ -362,7 +367,7 @@ class Trainer(object):
                     epochs_no_improve = 0
                     torch.save(model, f'./model_dict/model.pt')
             if epochs_no_improve > 3:
-                self.logger.info("No best dev loss, stop training.")
+                self.logger.info(f"No best dev loss, the best valid epoch is {best_valid_epoch}, stop training.")
                 break
 
     def validation(self, model, epoch, dev_loader):
@@ -404,7 +409,7 @@ class Trainer(object):
         return final_loss
 
     def test(self, out_max_len=64):
-        test_loader = self.make_dataloader(0, self.test_data, 1, shuffle=False)
+        test_loader = self.make_dataloader(0, self.test_data, self.eval_batch_size, shuffle=False)
 
         model = torch.load('./model_dict/model.pt').to(self.rank)
         f = open(os.path.join(self.dataset_dir, 'results.csv'), 'a+', encoding='utf-8')
@@ -573,7 +578,7 @@ class Trainer(object):
         return logits
 
     def generate(self, out_max_length=64, top_k=40, top_p=0.9, max_length=200):
-        test_loader = self.make_dataloader(0, self.test_data, 1, shuffle=False)
+        test_loader = self.make_dataloader(0, self.test_data, self.eval_batch_size, shuffle=False)
 
         model = torch.load('./model_dict/model.pt').to(self.rank)
         f = open(os.path.join(self.dataset_dir, 'top_k_results.csv'), 'a+', encoding='utf-8')

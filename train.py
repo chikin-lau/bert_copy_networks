@@ -22,6 +22,8 @@ def main():
                         help='max length of target data')
     parser.add_argument('--train_batch_size', type=int, default=32,
                         help='batch size for training')
+    parser.add_argument('--dev_batch_size', type=int, default=32,
+                        help='batch size for validation')
     parser.add_argument('--eval_batch_size', type=int, default=16,
                         help='batch size for evaluating')
     parser.add_argument('--epochs', default=20, type=int,
@@ -32,7 +34,12 @@ def main():
                         help='number of gpus to use')
     parser.add_argument('--fp16', default=False, type=bool,
                         help='是否使用混合精度加速')
+    parser.add_argument('--lr', default=5e-5, type=float,
+                        help='learning rate')
+    parser.add_argument('--pre_lr', default=5e-5, type=float,
+                        help='pretrain model learning rate')
     # parser.add_argument('--is_train', action='store_true')
+    parser.add_argument('--is_schedule', default=True, type=bool)
     parser.add_argument('--is_test', action='store_true')
     parser.add_argument('--is_generate', action='store_true')
     parser.add_argument('--is_eval', action='store_true')
@@ -61,5 +68,8 @@ if __name__ == "__main__":
 
 
 
-# !python train.py --epochs 10 --gpus 1 --train_batch_size 32 --eval_batch_size 16 --max_len 128 --train_file "Persona_train_clean.tsv" --dev_file "Persona_val_clean.tsv"
+# !python train.py --epochs 15 --train_batch_size 16 --dev_batch_size 16 --train_file "Persona_train_clean.tsv" --dev_file "Persona_val_clean.tsv"
+# !python train.py --is_eval --dev_batch_size 16 --test_file "Persona_test_deepclean.tsv"
+# !python train.py --is_test --dev_batch_size 16 --test_file "Persona_test_deepclean.tsv"
+# !python train.py --is_generate --dev_batch_size 16 --test_file "Persona_test_deepclean.tsv"
 # !python test.py --epochs 2
