@@ -36,7 +36,7 @@ def main():
                         help='是否使用混合精度加速')
     parser.add_argument('--lr', default=5e-5, type=float,
                         help='learning rate')
-    parser.add_argument('--pre_lr', default=5e-5, type=float,
+    parser.add_argument('--pre_lr', default=7e-6, type=float,
                         help='pretrain model learning rate')
     # parser.add_argument('--is_train', action='store_true')
     parser.add_argument('--is_schedule', default=True, type=bool)
@@ -50,7 +50,7 @@ def main():
     if args.is_test:
         trainer.test()
     elif args.is_generate:
-        trainer.generate(out_max_length=64, top_k=5, top_p=0.95, max_length=128)
+        trainer.generate(out_max_length=64, top_k=40, top_p=0.9, max_length=128)
     elif args.is_eval:
         trainer.eval()
     else:

@@ -581,7 +581,7 @@ class Trainer(object):
         test_loader = self.make_dataloader(0, self.test_data, self.eval_batch_size, shuffle=False)
 
         model = torch.load('./model_dict/model.pt').to(self.rank)
-        f = open(os.path.join(self.dataset_dir, 'top_k_results.csv'), 'a+', encoding='utf-8')
+        f = open(os.path.join(self.dataset_dir, 'sampling_results.csv'), 'a+', encoding='utf-8')
 
         generated_token = []
         gold_token = []
