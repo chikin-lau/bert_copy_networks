@@ -626,7 +626,7 @@ class Trainer(object):
                     output_ids = torch.cat([output_ids, next_token], -1)
 
                 # mask掉SEP后面的字
-                sen_len = [out_max_len - 1] * tgt_input_ids.shape[0]
+                sen_len = [out_max_length - 1] * tgt_input_ids.shape[0]
                 for i in range(0, tgt_input_ids.shape[0]):
                     for j in range(0, tgt_input_ids.shape[1]):
                         if tgt_input_ids[i][j] == self.tokenizer.convert_tokens_to_ids('[SEP]'):
