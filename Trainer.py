@@ -609,7 +609,7 @@ class Trainer(object):
                     scores = model.decode(memory, tgt_input_ids[:, :j], src_input_ids, tgt_attention_masks[:, :j],
                                           src_attention_masks)
 
-                    logit_score = torch.log_softmax(scores[:, -1], dim=-1)
+                    logit_score = torch.softmax(scores[:, -1], dim=-1)
                     for i in range(0, len(logit_score)):
                         logit_score[i][self.unk_id] = -float('Inf')
 
@@ -746,42 +746,31 @@ class Trainer(object):
             reference = self.tokenizer.tokenize(generated_token[i])
             candidate = self.tokenizer.tokenize(gold_token[i])
 
-            c = 0
-            r_list = []
-            for j in range(0, len(candidate)):
-                for k in range(0, len(reference)):
-                    if candidate[j] == reference[k] and len(r_list) == 0:
-                        c += 1
-                        r_list.append(k)
-                        break
-                    false_num = 0
-                    for s in [k != rl for rl in r_list]:
-                        if not s:
-                            false_num += 1
-                    if candidate[j] == reference[k] and false_num < 1:
-                        c += 1
-                        r_list.append(k)
-                        break
-
-            r = 0
-            c_list = []
+            n = 0
+            n_list = []
             for j in range(0, len(reference)):
                 for k in range(0, len(candidate)):
-                    if reference[j] == candidate[k] and len(c_list) == 0:
-                        r += 1
-                        c_list.append(k)
+                    if reference[j] == candidate[k] and len(n_list) == 0:
+                        n += 1
+                        n_list.append(k)
                         break
                     false_num = 0
-                    for s in [k != cl for cl in c_list]:
+                    for s in [k != cl for cl in n_list]:
                         if not s:
                             false_num += 1
                     if reference[j] == candidate[k] and false_num < 1:
-                        r += 1
-                        c_list.append(k)
+                        n += 1
+                        n_list.append(k)
                         break
 
-            precision = c / len(candidate)
-            recall = r / len(reference)
+            if len(reference) == 0:
+                precision = 0
+            else:
+                precision = n / len(reference)
+            if len(candidate) == 0:
+                recall = 0
+            else:
+                recall = n / len(candidate)
             if (precision + recall) == 0:
                 F1 = F1 + 0
             else:
