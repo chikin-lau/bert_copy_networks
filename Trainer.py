@@ -46,7 +46,7 @@ class Trainer(object):
         self.epochs = args.epochs
         self.label_smooth = args.label_smooth
         self.lr = args.lr
-        self.p_lr = args.p_lr
+        self.pre_lr = args.pre_lr
 
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-chinese')
         self.vocab = self.tokenizer.vocab
@@ -271,8 +271,8 @@ class Trainer(object):
         param_optimizer = list(model.named_parameters())
         no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [
-            {'params': model.encoder.parameters(), 'lr': self.p_lr, 'weight_decay': 0.01},
-            {'params': model.tgt_embed.parameters(), 'lr': self.p_lr, 'weight_decay': 0.01},
+            {'params': model.encoder.parameters(), 'lr': self.pre_lr, 'weight_decay': 0.01},
+            {'params': model.tgt_embed.parameters(), 'lr': self.pre_lr, 'weight_decay': 0.01},
             {'params': model.decoder.parameters(), 'weight_decay': 0.01},
             {'params': model.p_vocab.parameters(), 'weight_decay': 0.01},
             {'params': model.p_gen.parameters(), 'weight_decay': 0.01}
