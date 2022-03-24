@@ -539,6 +539,10 @@ class Trainer(object):
                     scores = model.decode(memory, tgt_input_ids, src_input_ids, None, src_attention_masks)
                     # 重复beam-size次 输入ids
                     tgt_input_ids = tgt_input_ids.view(1, -1).repeat(beam_size, 1)
+                    memory = memory.repeat(1, beam_size, 1)
+                    # memory = memory.transpose(0, 1).view(1, -1).repeat(beam_size, 1).view(memory.shape[0], beam_size, -1)
+                    src_input_ids = src_input_ids.view(1, -1).repeat(beam_size, 1)
+                    src_attention_masks = src_attention_masks.view(1, -1).repeat(beam_size, 1)
                 # 第二步开始不用再复制
                 else:
                     # scores = model(new_input_ids, new_token_type_ids)
