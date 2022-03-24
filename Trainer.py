@@ -502,6 +502,110 @@ class Trainer(object):
                 dec_seq = torch.cat((dec_seq, dec_output[:, -1].unsqueeze(-1)), 1)
         return dec_seq
 
+    def beam_search(self, beam_size=1):
+        """
+        beam-search操作
+        输入：原始数字化后的序列
+        输出：self.tgt_len长度的的数字化序列，不包括输入序列
+        """
+        test_loader = self.make_dataloader(0, self.test_data, 1, shuffle=False)
+
+        model = torch.load('./model_dict/model.pt').to(self.rank)
+        f = open(os.path.join(self.dataset_dir, 'beam_results.csv'), 'a+', encoding='utf-8')
+        sep_id = self.sep_id
+
+        generated_token = []
+        gold_token = []
+        persona_token = []
+        query_token = []
+        for batch in tqdm(test_loader):
+            src_input_ids, src_input_masks, src_type_ids = batch[0].to(self.rank), batch[1].to(self.rank), batch[
+                5].to(self.rank)
+            trg_ground_ids = batch[3].to(self.rank)
+            per_input_ids, query_input_ids = batch[6].to(self.rank), batch[7].to(self.rank)
+
+            memory = model.encode(src_input_ids, src_input_masks, src_type_ids).transpose(0, 1)
+            tgt_input_ids = torch.zeros(src_input_ids.shape[0], 1, dtype=torch.long, device=self.rank)
+            tgt_input_ids[:, 0] = self.cls_id  # bert sentence head
+            src_attention_masks = ((1 - src_input_masks) > 0)
+
+            # 用来保存输出序列
+            output_ids = torch.empty(1, 0, device=self.rank, dtype=torch.long)
+            # 用来保存累计得分
+            output_scores = torch.zeros(src_input_ids.shape[0], device=self.rank)
+            for step in range(self.tgt_len):
+                # 第一步需要把序列复制beam_search份
+                if step == 0:
+                    scores = model.decode(memory, tgt_input_ids, src_input_ids, None, src_attention_masks)
+                    # 重复beam-size次 输入ids
+                    tgt_input_ids = tgt_input_ids.view(1, -1).repeat(beam_size, 1)
+                # 第二步开始不用再复制
+                else:
+                    # scores = model(new_input_ids, new_token_type_ids)
+                    # scores = self.model(input_ids=new_input_ids, token_type_ids=new_token_type_ids)[0]
+                    scores = model.decode(memory, new_input_ids, src_input_ids, None, src_attention_masks)
+
+                logit_score = torch.log_softmax(scores[:, -1], dim=-1)
+
+                logit_score = output_scores.view(-1, 1) + logit_score  # 累计得分
+                # 取topk的时候我们是展平了然后再去调用topk函数
+                # 展平
+                logit_score = logit_score.view(-1)
+                hype_score, hype_pos = torch.topk(logit_score, beam_size)
+                indice1 = (hype_pos // scores.shape[-1])  # 行索引
+                indice2 = (hype_pos % scores.shape[-1]).long().reshape(-1, 1)  # 列索引
+
+                # 更新得分
+                output_scores = hype_score
+                output_ids = torch.cat([output_ids[indice1], indice2], dim=1).long()
+                new_input_ids = torch.cat([tgt_input_ids, output_ids], dim=1)
+                # new_token_type_ids = torch.cat([token_type_ids, torch.ones_like(output_ids)], dim=1)
+
+                end_counts = (output_ids == sep_id).sum(1)  # 统计出现的end标记
+                best_one = output_scores.argmax()
+                if end_counts[best_one] == 1:
+                    # 说明出现终止了～
+                    return output_ids[best_one][:-1]
+                else:
+                    # 保留未完成部分
+                    flag = (end_counts < 1)  # 标记未完成序列
+                    if not flag.all():  # 如果有已完成的
+                        tgt_input_ids = tgt_input_ids[flag]
+                        # token_type_ids = token_type_ids[flag]
+                        new_input_ids = new_input_ids[flag]
+                        # new_token_type_ids = new_token_type_ids[flag]
+                        output_ids = output_ids[flag]  # 扔掉已完成序列
+                        output_scores = output_scores[flag]  # 扔掉已完成序列
+                        end_counts = end_counts[flag]  # 扔掉已完成end计数
+                        beam_size = flag.sum()  # topk相应变化
+
+            tgt_ids = output_ids[output_scores.argmax()]
+            generated_token += self.decode(tgt_ids)
+            persona_token += self.decode(per_input_ids)
+            # per_string = re.sub(r"\s{1,}", "", per_string)
+            query_token += self.decode(query_input_ids)
+            # query_string = re.sub(r"\s{1,}", "", query_string)
+            gold_token += self.decode(trg_ground_ids)
+            # trg_string = re.sub(r"\s{1,}", "", trg_string)
+
+        for p, q, g, r in zip(persona_token, query_token, gold_token, generated_token):
+            p = re.sub(r"\s{1,}", "", p)
+            q = re.sub(r"\s{1,}", "", q)
+            g = re.sub(r"\s{1,}", "", g)
+            r = re.sub(r"\s{1,}", "", r)
+            f.write(f"persona:{p}\nquery:{q}\ngold:{g}\nresponse:{r}\n\n")
+
+        bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2 = self.automated_metrics(generated_token,
+                                                                                                    gold_token)
+        f.write('BLEU 1-gram: %f\n' % bleu_1)
+        f.write('BLEU 2-gram: %f\n' % bleu_2)
+        f.write('BLEU 3-gram: %f\n' % bleu_3)
+        f.write('BLEU 4-gram: %f\n' % bleu_4)
+        f.write('F1-score: %f\n' % F1)
+        f.write(f"Distinct-1 (hypothesis, reference): {round(hyp_d1, 4)}, {round(ref_d1, 4)}\n")
+        f.write(f"Distinct-2 (hypothesis, reference): {round(hyp_d2, 4)}, {round(ref_d2, 4)}\n")
+        f.close()
+
     def top_k_top_p_filtering(self, logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
         """ Filter a distribution of logits using top-k and/or nucleus (top-p) filtering
             Args:

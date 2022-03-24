@@ -38,11 +38,18 @@ def main():
                         help='learning rate')
     parser.add_argument('--pre_lr', default=7e-6, type=float,
                         help='pretrain model learning rate')
+    parser.add_argument('--beam_size', default=3, type=int,
+                        help='beam size')
+    parser.add_argument('--top_k', default=5, type=int,
+                        help='beam size')
+    parser.add_argument('--top_p', default=0.9, type=float,
+                        help='beam size')
     # parser.add_argument('--is_train', action='store_true')
     parser.add_argument('--is_schedule', default=True, type=bool)
     parser.add_argument('--is_test', action='store_true')
     parser.add_argument('--is_generate', action='store_true')
     parser.add_argument('--is_eval', action='store_true')
+    parser.add_argument('--is_beam_search', action='store_true')
     args = parser.parse_args()
 
     trainer = Trainer(args, rank=1)
@@ -50,9 +57,11 @@ def main():
     if args.is_test:
         trainer.test()
     elif args.is_generate:
-        trainer.generate(out_max_length=64, top_k=40, top_p=0.9, max_length=128)
+        trainer.generate(out_max_length=64, top_k=args.top_k, top_p=args.top_p, max_length=128)
     elif args.is_eval:
         trainer.eval()
+    elif args.is_beam_search:
+        trainer.beam_search(beam_size=args.beam_size)
     else:
         trainer.train()
     # trainer.train()
@@ -69,7 +78,8 @@ if __name__ == "__main__":
 
 
 # !python train.py --epochs 15 --train_batch_size 16 --dev_batch_size 16 --train_file "Persona_train_clean.tsv" --dev_file "Persona_val_clean.tsv"
-# !python train.py --is_eval --dev_batch_size 16 --test_file "Persona_test_deepclean.tsv"
-# !python train.py --is_test --dev_batch_size 16 --test_file "Persona_test_deepclean.tsv"
-# !python train.py --is_generate --dev_batch_size 16 --test_file "Persona_test_deepclean.tsv"
+# !python train.py --is_eval --eval_batch_size 16 --test_file "Persona_test_deepclean.tsv"
+# !python train.py --is_test --eval_batch_size 16 --test_file "Persona_test_deepclean.tsv"
+# !python train.py --is_generate --top_k 5 --top_p 0.9 --eval_batch_size 16 --test_file "Persona_test_deepclean.tsv"
+# !python train.py --is_beam_search --beam_size 3 --eval_batch_size 16 --test_file "Persona_test_deepclean.tsv"
 # !python test.py --epochs 2
