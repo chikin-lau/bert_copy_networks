@@ -583,7 +583,7 @@ class Trainer(object):
                         end_counts = end_counts[flag]  # 扔掉已完成end计数
                         beam_size = flag.sum()  # topk相应变化
 
-            tgt_ids = output_ids[output_scores.argmax()]
+            tgt_ids = output_ids[output_scores.argmax()].unsqueeze(0)
             generated_token += self.decode(tgt_ids)
             persona_token += self.decode(per_input_ids)
             # per_string = re.sub(r"\s{1,}", "", per_string)
