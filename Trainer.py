@@ -537,6 +537,7 @@ class Trainer(object):
             for step in range(self.tgt_len):
                 # 第一步需要把序列复制beam_search份
                 if step == 0:
+                    print("step:",step)
                     scores = model.decode(memory, tgt_input_ids, src_input_ids, None, src_attention_masks)
                     # 重复beam-size次 输入ids
                     tgt_input_ids = tgt_input_ids.view(1, -1).repeat(beam_size, 1)
@@ -551,6 +552,7 @@ class Trainer(object):
                     print("memory:", memory.shape)
                 # 第二步开始不用再复制
                 else:
+                    print("step:", step)
                     # scores = model(new_input_ids, new_token_type_ids)
                     # scores = self.model(input_ids=new_input_ids, token_type_ids=new_token_type_ids)[0]
                     scores = model.decode(memory, new_input_ids, src_input_ids, None, src_attention_masks)
