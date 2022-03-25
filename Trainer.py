@@ -649,8 +649,8 @@ class Trainer(object):
             r = re.sub(r"\s{1,}", "", r)
             f.write(f"persona:{p}\nquery:{q}\ngold:{g}\nresponse:{r}\n\n")
 
-        print("generated_token:", generated_token)
-        print("gold_token:", gold_token)
+        # print("generated_token:", generated_token)
+        # print("gold_token:", gold_token)
         bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2, _bert_score = self.automated_metrics(generated_token,
                                                                                                     gold_token)
         f.write('BLEU 1-gram: %f\n' % bleu_1)
