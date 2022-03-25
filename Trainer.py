@@ -536,8 +536,9 @@ class Trainer(object):
             output_scores = torch.zeros(src_input_ids.shape[0], device=self.rank)
             for step in range(self.tgt_len):
                 # 第一步需要把序列复制beam_search份
+                print("step:", step)
                 if step == 0:
-                    print("step:",step)
+                    print("step:", step)
                     scores = model.decode(memory, tgt_input_ids, src_input_ids, None, src_attention_masks)
                     # 重复beam-size次 输入ids
                     tgt_input_ids = tgt_input_ids.view(1, -1).repeat(beam_size, 1)
