@@ -579,6 +579,7 @@ class Trainer(object):
                 print("tgt_input_ids:", tgt_input_ids.shape)
                 print("output_ids:", output_ids.shape)
                 new_input_ids = torch.cat([tgt_input_ids, output_ids], dim=1)
+                print("new_input_ids:", new_input_ids.shape)
                 # new_token_type_ids = torch.cat([token_type_ids, torch.ones_like(output_ids)], dim=1)
 
                 end_counts = (output_ids == sep_id).sum(1)  # 统计出现的end标记
@@ -589,10 +590,12 @@ class Trainer(object):
                 else:
                     # 保留未完成部分
                     flag = (end_counts < 1)  # 标记未完成序列
+                    print("flag:", flag)
                     if not flag.all():  # 如果有已完成的
                         tgt_input_ids = tgt_input_ids[flag]
                         # token_type_ids = token_type_ids[flag]
                         new_input_ids = new_input_ids[flag]
+                        print("new_input_ids:", new_input_ids.shape)
                         # new_token_type_ids = new_token_type_ids[flag]
                         output_ids = output_ids[flag]  # 扔掉已完成序列
                         output_scores = output_scores[flag]  # 扔掉已完成序列
