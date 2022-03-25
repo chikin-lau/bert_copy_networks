@@ -547,9 +547,9 @@ class Trainer(object):
                     src_input_ids = src_input_ids.view(1, -1).repeat(beam_size, 1)
                     src_attention_masks = src_attention_masks.view(1, -1).repeat(beam_size, 1)
 
+                    print("tgt_input_ids:", tgt_input_ids.shape)
                     print("src_attention_masks:", src_attention_masks.shape)
                     print("src_input_ids:", src_input_ids.shape)
-                    print("src_attention_masks:", src_attention_masks.shape)
                     print("memory:", memory.shape)
                 # 第二步开始不用再复制
                 else:
