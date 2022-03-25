@@ -579,7 +579,7 @@ class Trainer(object):
                     save_ids.extend(output_ids[conv_flag])
                     save_scores.extend(output_scores[conv_flag]/(step+1))
                     best_one = torch.tensor(save_scores).argmax().item()
-                    tgt_ids = save_ids[best_one][:-1]
+                    tgt_ids = save_ids[best_one]
                     break
                 if not flag.all():  # 如果有已完成的
                     # 保存已完成序列
@@ -632,7 +632,8 @@ class Trainer(object):
                 #     tgt_ids = output_ids[output_scores.argmax()].unsqueeze(0)
 
 
-            print("tgt_ids:",tgt_ids)
+            print("tgt_ids:", tgt_ids.shape)
+            print("trg_ground_ids:", trg_ground_ids.shape)
             generated_token += self.decode(tgt_ids)
             persona_token += self.decode(per_input_ids)
             # per_string = re.sub(r"\s{1,}", "", per_string)
