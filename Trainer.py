@@ -23,6 +23,7 @@ import random
 from utils import *
 from preprocess import *
 from models.model_utils import padding_trg
+# from nltk.translate.bleu_score import sentence_bleu, corpus_bleu
 
 
 random.seed(2021)
@@ -556,7 +557,8 @@ class Trainer(object):
                 # 展平
                 logit_score = logit_score.view(-1)
                 hype_score, hype_pos = torch.topk(logit_score, beam_size)
-                indice1 = (hype_pos // scores.shape[-1])  # 行索引
+                # indice1 = (hype_pos // scores.shape[-1])  # 行索引
+                indice1 = (torch.div(hype_pos, scores.shape[-1], rounding_mode='trunc'))  # 行索引
                 indice2 = (hype_pos % scores.shape[-1]).long().reshape(-1, 1)  # 列索引
 
                 # 更新得分
