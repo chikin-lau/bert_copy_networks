@@ -583,6 +583,8 @@ class Trainer(object):
                 # new_token_type_ids = torch.cat([token_type_ids, torch.ones_like(output_ids)], dim=1)
 
                 end_counts = (output_ids == sep_id).sum(1)  # 统计出现的end标记
+                print("(output_ids == sep_id):", (output_ids == sep_id))
+                print("end_counts:", end_counts)
                 best_one = output_scores.argmax()
                 if end_counts[best_one] == 1:
                     # 说明出现终止了～
@@ -595,7 +597,7 @@ class Trainer(object):
                         tgt_input_ids = tgt_input_ids[flag]
                         # token_type_ids = token_type_ids[flag]
                         new_input_ids = new_input_ids[flag]
-                        memory = memory[flag]
+                        memory = memory[:, flag, :]
                         src_input_ids = src_input_ids[flag]
                         src_attention_masks = src_attention_masks[flag]
                         print("new_input_ids:", new_input_ids.shape)
