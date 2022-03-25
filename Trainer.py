@@ -632,6 +632,7 @@ class Trainer(object):
                 #     tgt_ids = output_ids[output_scores.argmax()].unsqueeze(0)
 
 
+            print("tgt_ids:",tgt_ids)
             generated_token += self.decode(tgt_ids)
             persona_token += self.decode(per_input_ids)
             # per_string = re.sub(r"\s{1,}", "", per_string)
@@ -647,6 +648,8 @@ class Trainer(object):
             r = re.sub(r"\s{1,}", "", r)
             f.write(f"persona:{p}\nquery:{q}\ngold:{g}\nresponse:{r}\n\n")
 
+        print("generated_token:", generated_token)
+        print("gold_token:", gold_token)
         bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2 = self.automated_metrics(generated_token,
                                                                                                     gold_token)
         f.write('BLEU 1-gram: %f\n' % bleu_1)
