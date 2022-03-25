@@ -576,6 +576,8 @@ class Trainer(object):
                 # 更新得分
                 output_scores = hype_score
                 output_ids = torch.cat([output_ids[indice1], indice2], dim=1).long()
+                print("tgt_input_ids:", tgt_input_ids.shape)
+                print("output_ids:", output_ids.shape)
                 new_input_ids = torch.cat([tgt_input_ids, output_ids], dim=1)
                 # new_token_type_ids = torch.cat([token_type_ids, torch.ones_like(output_ids)], dim=1)
 
