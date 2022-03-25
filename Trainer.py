@@ -595,6 +595,9 @@ class Trainer(object):
                         tgt_input_ids = tgt_input_ids[flag]
                         # token_type_ids = token_type_ids[flag]
                         new_input_ids = new_input_ids[flag]
+                        memory = memory[flag]
+                        src_input_ids = src_input_ids[flag]
+                        src_attention_masks = src_attention_masks[flag]
                         print("new_input_ids:", new_input_ids.shape)
                         # new_token_type_ids = new_token_type_ids[flag]
                         output_ids = output_ids[flag]  # 扔掉已完成序列
