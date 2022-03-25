@@ -531,12 +531,13 @@ class Trainer(object):
             src_attention_masks = ((1 - src_input_masks) > 0)
 
             # 用来保存输出序列
-            output_ids = torch.empty(1, 0, device=self.rank, dtype=torch.long)
+            output_ids = torch.empty(src_input_ids.shape[0], 0, device=self.rank, dtype=torch.long)
             # 用来保存累计得分
             output_scores = torch.zeros(src_input_ids.shape[0], device=self.rank)
+            save_ids = []
+            save_scores = []
             for step in range(self.tgt_len):
                 # 第一步需要把序列复制beam_search份
-                # print("step:", step)
                 if step == 0:
                     print("step:", step)
                     scores = model.decode(memory, tgt_input_ids, src_input_ids, None, src_attention_masks)
@@ -546,20 +547,11 @@ class Trainer(object):
                     # memory = memory.transpose(0, 1).view(1, -1).repeat(beam_size, 1).view(memory.shape[0], beam_size, -1)
                     src_input_ids = src_input_ids.view(1, -1).repeat(beam_size, 1)
                     src_attention_masks = src_attention_masks.view(1, -1).repeat(beam_size, 1)
-
-                    print("tgt_input_ids:", tgt_input_ids.shape)
-                    print("src_attention_masks:", src_attention_masks.shape)
-                    print("src_input_ids:", src_input_ids.shape)
-                    print("memory:", memory.shape)
                 # 第二步开始不用再复制
                 else:
                     print("step:", step)
                     # scores = model(new_input_ids, new_token_type_ids)
                     # scores = self.model(input_ids=new_input_ids, token_type_ids=new_token_type_ids)[0]
-                    print("src_input_ids:", src_input_ids.shape)
-                    print("memory:", memory.shape)
-                    print("new_input_ids:", new_input_ids.shape)
-                    print("src_attention_masks:", src_attention_masks.shape)
                     scores = model.decode(memory, new_input_ids, src_input_ids, None, src_attention_masks)
 
                 logit_score = torch.log_softmax(scores[:, -1], dim=-1)
@@ -576,38 +568,70 @@ class Trainer(object):
                 # 更新得分
                 output_scores = hype_score
                 output_ids = torch.cat([output_ids[indice1], indice2], dim=1).long()
-                print("tgt_input_ids:", tgt_input_ids.shape)
-                print("output_ids:", output_ids.shape)
                 new_input_ids = torch.cat([tgt_input_ids, output_ids], dim=1)
-                print("new_input_ids:", new_input_ids.shape)
                 # new_token_type_ids = torch.cat([token_type_ids, torch.ones_like(output_ids)], dim=1)
 
                 end_counts = (output_ids == sep_id).sum(1)  # 统计出现的end标记
-                print("(output_ids == sep_id):", (output_ids == sep_id))
-                print("end_counts:", end_counts)
-                best_one = output_scores.argmax()
-                if end_counts[best_one] == 1:
-                    # 说明出现终止了～
-                    return output_ids[best_one][:-1]
-                else:
-                    # 保留未完成部分
-                    flag = (end_counts < 1)  # 标记未完成序列
-                    print("flag:", flag)
-                    if not flag.all():  # 如果有已完成的
-                        tgt_input_ids = tgt_input_ids[flag]
-                        # token_type_ids = token_type_ids[flag]
-                        new_input_ids = new_input_ids[flag]
-                        memory = memory[:, flag, :]
-                        src_input_ids = src_input_ids[flag]
-                        src_attention_masks = src_attention_masks[flag]
-                        print("new_input_ids:", new_input_ids.shape)
-                        # new_token_type_ids = new_token_type_ids[flag]
-                        output_ids = output_ids[flag]  # 扔掉已完成序列
-                        output_scores = output_scores[flag]  # 扔掉已完成序列
-                        end_counts = end_counts[flag]  # 扔掉已完成end计数
-                        beam_size = flag.sum()  # topk相应变化
+                # best_one = output_scores.argmax()
+                flag = (end_counts < 1)  # 标记未完成序列
+                conv_flag = (end_counts == 1)  # 标记已完成序列
+                if conv_flag.all():  # 当前如果全部完成(全部为SEP)
+                    save_ids.extend(output_ids[conv_flag])
+                    save_scores.extend(output_scores[conv_flag]/(step+1))
+                    best_one = torch.tensor(save_scores).argmax().item()
+                    tgt_ids = save_ids[best_one][:-1]
+                    break
+                if not flag.all():  # 如果有已完成的
+                    # 保存已完成序列
+                    save_ids.extend(output_ids[conv_flag])
+                    save_scores.extend(output_scores[conv_flag]/(step+1))
 
-            tgt_ids = output_ids[output_scores.argmax()].unsqueeze(0)
+                    # 扔掉已完成序列相关数据
+                    tgt_input_ids = tgt_input_ids[flag]
+                    new_input_ids = new_input_ids[flag]
+                    memory = memory[:, flag, :]
+                    src_input_ids = src_input_ids[flag]
+                    src_attention_masks = src_attention_masks[flag]
+                    # new_token_type_ids = new_token_type_ids[flag]
+                    output_ids = output_ids[flag]  # 扔掉已完成序列
+                    output_scores = output_scores[flag]  # 扔掉已完成序列
+                    end_counts = end_counts[flag]  # 扔掉已完成end计数
+                    beam_size = flag.sum()  # topk相应变化
+                if step == self.tgt_len - 1:  # 字数到达最大限制
+                    # 未完成的也直接加到保存序列里
+                    save_ids.extend(output_ids[flag])
+                    save_scores.extend(output_scores[flag]/(step+1))
+
+                    best_one = torch.tensor(save_scores).argmax().item()
+                    tgt_ids = save_ids[best_one]
+
+                # end_counts = (output_ids == sep_id).sum(1)  # 统计出现的end标记
+                # best_one = output_scores.argmax()
+                # flag = (end_counts < 1)  # 标记未完成序列
+                # if end_counts[best_one] == 1:
+                #     # 说明出现终止了～
+                #     tgt_ids = output_ids[best_one][:-1]
+                #     break
+                # else:
+                #     # 保留未完成部分
+                #     flag = (end_counts < 1)  # 标记未完成序列
+                #     conv_flag = (end_counts == 1)  # 标记已完成序列
+                #     if not flag.all():  # 如果有已完成的
+                #         tgt_input_ids = tgt_input_ids[flag]
+                #         # token_type_ids = token_type_ids[flag]
+                #         new_input_ids = new_input_ids[flag]
+                #         memory = memory[:, flag, :]
+                #         src_input_ids = src_input_ids[flag]
+                #         src_attention_masks = src_attention_masks[flag]
+                #         # new_token_type_ids = new_token_type_ids[flag]
+                #         output_ids = output_ids[flag]  # 扔掉已完成序列
+                #         output_scores = output_scores[flag]  # 扔掉已完成序列
+                #         end_counts = end_counts[flag]  # 扔掉已完成end计数
+                #         beam_size = flag.sum()  # topk相应变化
+                # if step == self.tgt_len - 1:
+                #     tgt_ids = output_ids[output_scores.argmax()].unsqueeze(0)
+
+
             generated_token += self.decode(tgt_ids)
             persona_token += self.decode(per_input_ids)
             # per_string = re.sub(r"\s{1,}", "", per_string)
