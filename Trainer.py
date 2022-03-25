@@ -544,6 +544,11 @@ class Trainer(object):
                     # memory = memory.transpose(0, 1).view(1, -1).repeat(beam_size, 1).view(memory.shape[0], beam_size, -1)
                     src_input_ids = src_input_ids.view(1, -1).repeat(beam_size, 1)
                     src_attention_masks = src_attention_masks.view(1, -1).repeat(beam_size, 1)
+
+                    print("src_attention_masks:", src_attention_masks.shape)
+                    print("src_input_ids:", src_input_ids.shape)
+                    print("src_attention_masks:", src_attention_masks.shape)
+                    print("memory:", memory.shape)
                 # 第二步开始不用再复制
                 else:
                     # scores = model(new_input_ids, new_token_type_ids)
