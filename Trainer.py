@@ -6,6 +6,7 @@ from torch.cuda.amp import autocast
 import math
 import numpy as np
 from evaluations import eval_distinct, corpus_bleu
+from bert_score import score as bert_score
 
 import torch
 import torch.nn as nn
@@ -478,7 +479,7 @@ class Trainer(object):
             r = re.sub(r"\s{1,}", "", r)
             f.write(f"persona:{p}\nquery:{q}\ngold:{g}\nresponse:{r}\n\n")
 
-        bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2 = self.automated_metrics(generated_token,
+        bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2, bert_score = self.automated_metrics(generated_token,
                                                                                                     gold_token)
         f.write('BLEU 1-gram: %f\n' % bleu_1)
         f.write('BLEU 2-gram: %f\n' % bleu_2)
@@ -487,6 +488,7 @@ class Trainer(object):
         f.write('F1-score: %f\n' % F1)
         f.write(f"Distinct-1 (hypothesis, reference): {round(hyp_d1, 4)}, {round(ref_d1, 4)}\n")
         f.write(f"Distinct-2 (hypothesis, reference): {round(hyp_d2, 4)}, {round(ref_d2, 4)}\n")
+        f.write(f"System level bert_score score: {bert_score.mean():.3f}\n")
         f.close()
 
     def greedy_decode(self, model, src_seq, src_mask, out_max_len=64):
@@ -647,7 +649,7 @@ class Trainer(object):
             r = re.sub(r"\s{1,}", "", r)
             f.write(f"persona:{p}\nquery:{q}\ngold:{g}\nresponse:{r}\n\n")
 
-        bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2 = self.automated_metrics(generated_token,
+        bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2, bert_score = self.automated_metrics(generated_token,
                                                                                                     gold_token)
         f.write('BLEU 1-gram: %f\n' % bleu_1)
         f.write('BLEU 2-gram: %f\n' % bleu_2)
@@ -656,6 +658,7 @@ class Trainer(object):
         f.write('F1-score: %f\n' % F1)
         f.write(f"Distinct-1 (hypothesis, reference): {round(hyp_d1, 4)}, {round(ref_d1, 4)}\n")
         f.write(f"Distinct-2 (hypothesis, reference): {round(hyp_d2, 4)}, {round(ref_d2, 4)}\n")
+        f.write(f"System level bert_score score: {bert_score.mean():.3f}\n")
         f.close()
 
     def top_k_top_p_filtering(self, logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
@@ -814,7 +817,7 @@ class Trainer(object):
                 r = re.sub(r"\s{1,}", "", r)
                 f.write(f"persona:{p}\nquery:{q}\ngold:{g}\nresponse:{r}\n\n")
 
-            bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2 = self.automated_metrics(generated_token,
+            bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2, bert_score = self.automated_metrics(generated_token,
                                                                                                         gold_token)
             f.write('BLEU 1-gram: %f\n' % bleu_1)
             f.write('BLEU 2-gram: %f\n' % bleu_2)
@@ -823,6 +826,7 @@ class Trainer(object):
             f.write('F1-score: %f\n' % F1)
             f.write(f"Distinct-1 (hypothesis, reference): {round(hyp_d1, 4)}, {round(ref_d1, 4)}\n")
             f.write(f"Distinct-2 (hypothesis, reference): {round(hyp_d2, 4)}, {round(ref_d2, 4)}\n")
+            f.write(f"System level bert_score score: {bert_score.mean():.3f}\n")
             f.close()
 
     def eval(self):
@@ -942,4 +946,9 @@ class Trainer(object):
         print(f"Distinct-1 (hypothesis, reference): {round(hyp_d1, 4)}, {round(ref_d1, 4)}")
         print(f"Distinct-2 (hypothesis, reference): {round(hyp_d2, 4)}, {round(ref_d2, 4)}")
 
-        return bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2
+
+        # bert_score
+        P, R, bert_score = bert_score(generated_token, gold_token, lang="zh", verbose=True)
+        print(f"System level bert_score score: {bert_score.mean():.3f}")
+
+        return bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2, bert_score
