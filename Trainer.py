@@ -25,7 +25,7 @@ from utils import *
 from preprocess import *
 from models.model_utils import padding_trg
 # from nltk.translate.bleu_score import sentence_bleu, corpus_bleu
-
+from transformers import EncoderDecoderModel, BertTokenizer
 
 random.seed(2021)
 torch.manual_seed(2021)
@@ -64,11 +64,20 @@ class Trainer(object):
         self.dev_data = self.load_data(args.dev_file, args.dev_file.split(".")[0] + ".pt", is_test=False)
 
         self.test_data = self.load_data(args.test_file, args.test_file.split(".")[0] + ".pt")
-        self.model = PointerGeneratorTransformer(
-            rank=self.rank, src_vocab_size=self.vocab_size,
-            tgt_vocab_size=self.vocab_size, inv_vocab=self.inv_vocab,
-            pad_id=self.pad_id, max_len=self.max_len
-        )
+
+        if args.is_b2b:
+            self.b2b = True
+            self.model = EncoderDecoderModel.from_encoder_decoder_pretrained("bert-base-chinese", "bert-base-chinese")
+            self.model.config.decoder_start_token_id = self.tokenizer.cls_token_id
+            self.model.config.pad_token_id = self.tokenizer.pad_token_id
+            self.model.config.vocab_size = self.model.config.decoder.vocab_size
+        else:
+            self.model = PointerGeneratorTransformer(
+                rank=self.rank, src_vocab_size=self.vocab_size,
+                tgt_vocab_size=self.vocab_size, inv_vocab=self.inv_vocab,
+                pad_id=self.pad_id, max_len=self.max_len
+            )
+
         self.fp16 = args.fp16
         self.is_schedule = args.is_schedule
 
@@ -280,6 +289,10 @@ class Trainer(object):
             {'params': model.p_gen.parameters(), 'weight_decay': 0.01}
         ]
         optimizer = AdamW(optimizer_grouped_parameters, lr=self.lr, eps=1e-8)
+
+        if self.b2b:
+            optimizer = AdamW(model.parameters(), lr=self.pre_lr, eps=1e-8)
+
         if self.fp16:
             scaler = torch.cuda.amp.GradScaler()
         if self.is_schedule:
@@ -328,7 +341,12 @@ class Trainer(object):
                     # 更新scalar的缩放信息
                     scaler.update()
                 else:
-                    outputs = model(src_input_ids, src_input_masks, trg_input_ids, trg_input_masks, src_type_ids)
+                    if self.b2b:
+                        outputs = model(input_ids=src_input_ids, attention_mask=src_input_masks,
+                                        decoder_input_ids=trg_input_ids, decoder_attention_mask=trg_input_masks,
+                                        labels=trg_ground_ids).logits
+                    else:
+                        outputs = model(src_input_ids, src_input_masks, trg_input_ids, trg_input_masks, src_type_ids)
 
                     loss, n_correct, n_word = self.cal_performance(outputs, trg_ground_ids, smoothing=True)
 
@@ -388,8 +406,13 @@ class Trainer(object):
                 trg_input_ids, trg_ground_ids, trg_input_masks = batch[2].to(self.rank), batch[3].to(self.rank), batch[
                     4].to(self.rank)
 
-                # Compute output of model
-                output = model(src_input_ids, src_input_masks, trg_input_ids, trg_input_masks, src_type_ids)
+                if self.b2b:
+                    outputs = model(input_ids=src_input_ids, attention_mask=src_input_masks,
+                                    decoder_input_ids=trg_input_ids, decoder_attention_mask=trg_input_masks,
+                                    labels=trg_ground_ids).logits
+                else:
+                    # Compute output of model
+                    output = model(src_input_ids, src_input_masks, trg_input_ids, trg_input_masks, src_type_ids)
 
                 # Get model predictions
                 predictions = output.topk(1)[1].squeeze()
@@ -426,43 +449,48 @@ class Trainer(object):
             trg_ground_ids = batch[3].to(self.rank)
             per_input_ids, query_input_ids = batch[6].to(self.rank), batch[7].to(self.rank)
 
-            memory = model.encode(src_input_ids, src_input_masks, src_type_ids).transpose(0, 1)
-            tgt_input_ids = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long, device=self.rank)
-            tgt_input_ids[:, 0] = self.cls_id  # bert sentence head
-            for j in range(1, out_max_len):
-                tgt_input_masks = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long, device=self.rank)
-                tgt_input_masks[:, :j] = 1
+            if self.b2b:
+                tgt_input_ids = model.generate(input_ids=src_input_ids, max_length=out_max_len,
+                                               attention_mask=src_input_masks, bos_token_id=self.cls_id,
+                                               eos_token_id=self.sep_id, pad_token_id=self.pad_id)
+            else:
+                memory = model.encode(src_input_ids, src_input_masks, src_type_ids).transpose(0, 1)
+                tgt_input_ids = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long, device=self.rank)
+                tgt_input_ids[:, 0] = self.cls_id  # bert sentence head
+                for j in range(1, out_max_len):
+                    tgt_input_masks = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long, device=self.rank)
+                    tgt_input_masks[:, :j] = 1
 
-                src_attention_masks = ((1 - src_input_masks) > 0)
-                tgt_attention_masks = ((1 - tgt_input_masks) > 0)
+                    src_attention_masks = ((1 - src_input_masks) > 0)
+                    tgt_attention_masks = ((1 - tgt_input_masks) > 0)
 
-                output = model.decode(memory, tgt_input_ids[:, :j], src_input_ids, tgt_attention_masks[:, :j],
-                                      src_attention_masks)
-                _, ids = output.topk(1)
-                ids = ids.squeeze(-1)
+                    output = model.decode(memory, tgt_input_ids[:, :j], src_input_ids, tgt_attention_masks[:, :j],
+                                          src_attention_masks)
+                    _, ids = output.topk(1)
+                    ids = ids.squeeze(-1)
 
-                tgt_input_ids[:, j] = ids[:, -1]
+                    tgt_input_ids[:, j] = ids[:, -1]
 
-                # if ids[:, -1] == self.sep_id:
-                #     break
+                    # if ids[:, -1] == self.sep_id:
+                    #     break
 
-            # mask掉SEP后面的字
-            sen_len = [out_max_len-1] * tgt_input_ids.shape[0]
-            for i in range(0, tgt_input_ids.shape[0]):
-                for j in range(0, tgt_input_ids.shape[1]):
-                    if tgt_input_ids[i][j] == self.tokenizer.convert_tokens_to_ids('[SEP]'):
-                        sen_len[i] = j
-                        break
+                # mask掉SEP后面的字
+                sen_len = [out_max_len-1] * tgt_input_ids.shape[0]
+                for i in range(0, tgt_input_ids.shape[0]):
+                    for j in range(0, tgt_input_ids.shape[1]):
+                        if tgt_input_ids[i][j] == self.tokenizer.convert_tokens_to_ids('[SEP]'):
+                            sen_len[i] = j
+                            break
 
-            response_mask = torch.ones_like(tgt_input_ids)
-            for i in range(0, response_mask.shape[0]):
-                for j in range(0, response_mask.shape[1]):
-                    if j > sen_len[i]:
-                        response_mask[i][j] = 0
+                response_mask = torch.ones_like(tgt_input_ids)
+                for i in range(0, response_mask.shape[0]):
+                    for j in range(0, response_mask.shape[1]):
+                        if j > sen_len[i]:
+                            response_mask[i][j] = 0
 
-            #     print("response_idx:",response_idx.shape)
-            #     print("response_mask:",response_mask.shape)
-            tgt_input_ids = tgt_input_ids * response_mask
+                #     print("response_idx:",response_idx.shape)
+                #     print("response_mask:",response_mask.shape)
+                tgt_input_ids = tgt_input_ids * response_mask
 
             generated_token += self.decode(tgt_input_ids)
             persona_token += self.decode(per_input_ids)
@@ -527,111 +555,116 @@ class Trainer(object):
             trg_ground_ids = batch[3].to(self.rank)
             per_input_ids, query_input_ids = batch[6].to(self.rank), batch[7].to(self.rank)
 
-            memory = model.encode(src_input_ids, src_input_masks, src_type_ids).transpose(0, 1)
-            tgt_input_ids = torch.zeros(src_input_ids.shape[0], 1, dtype=torch.long, device=self.rank)
-            tgt_input_ids[:, 0] = self.cls_id  # bert sentence head
-            src_attention_masks = ((1 - src_input_masks) > 0)
+            if self.b2b:
+                tgt_ids = model.generate(input_ids=src_input_ids, max_length=out_max_len, num_beams=beam_size,
+                                               attention_mask=src_input_masks, bos_token_id=self.cls_id,
+                                               eos_token_id=self.sep_id, pad_token_id=self.pad_id).squeeze(0)
+            else:
+                memory = model.encode(src_input_ids, src_input_masks, src_type_ids).transpose(0, 1)
+                tgt_input_ids = torch.zeros(src_input_ids.shape[0], 1, dtype=torch.long, device=self.rank)
+                tgt_input_ids[:, 0] = self.cls_id  # bert sentence head
+                src_attention_masks = ((1 - src_input_masks) > 0)
 
-            # 用来保存输出序列
-            output_ids = torch.empty(src_input_ids.shape[0], 0, device=self.rank, dtype=torch.long)
-            # 用来保存累计得分
-            output_scores = torch.zeros(src_input_ids.shape[0], device=self.rank)
-            save_ids = []
-            save_scores = []
-            for step in range(self.tgt_len):
-                # 第一步需要把序列复制beam_search份
-                if step == 0:
-                    # print("step:", step)
-                    scores = model.decode(memory, tgt_input_ids, src_input_ids, None, src_attention_masks)
-                    # 重复beam-size次 输入ids
-                    tgt_input_ids = tgt_input_ids.view(1, -1).repeat(beam_size, 1)
-                    memory = memory.repeat(1, beam_size, 1)
-                    # memory = memory.transpose(0, 1).view(1, -1).repeat(beam_size, 1).view(memory.shape[0], beam_size, -1)
-                    src_input_ids = src_input_ids.view(1, -1).repeat(beam_size, 1)
-                    src_attention_masks = src_attention_masks.view(1, -1).repeat(beam_size, 1)
-                # 第二步开始不用再复制
-                else:
-                    # print("step:", step)
-                    # scores = model(new_input_ids, new_token_type_ids)
-                    # scores = self.model(input_ids=new_input_ids, token_type_ids=new_token_type_ids)[0]
-                    scores = model.decode(memory, new_input_ids, src_input_ids, None, src_attention_masks)
+                # 用来保存输出序列
+                output_ids = torch.empty(src_input_ids.shape[0], 0, device=self.rank, dtype=torch.long)
+                # 用来保存累计得分
+                output_scores = torch.zeros(src_input_ids.shape[0], device=self.rank)
+                save_ids = []
+                save_scores = []
+                for step in range(self.tgt_len):
+                    # 第一步需要把序列复制beam_search份
+                    if step == 0:
+                        # print("step:", step)
+                        scores = model.decode(memory, tgt_input_ids, src_input_ids, None, src_attention_masks)
+                        # 重复beam-size次 输入ids
+                        tgt_input_ids = tgt_input_ids.view(1, -1).repeat(beam_size, 1)
+                        memory = memory.repeat(1, beam_size, 1)
+                        # memory = memory.transpose(0, 1).view(1, -1).repeat(beam_size, 1).view(memory.shape[0], beam_size, -1)
+                        src_input_ids = src_input_ids.view(1, -1).repeat(beam_size, 1)
+                        src_attention_masks = src_attention_masks.view(1, -1).repeat(beam_size, 1)
+                    # 第二步开始不用再复制
+                    else:
+                        # print("step:", step)
+                        # scores = model(new_input_ids, new_token_type_ids)
+                        # scores = self.model(input_ids=new_input_ids, token_type_ids=new_token_type_ids)[0]
+                        scores = model.decode(memory, new_input_ids, src_input_ids, None, src_attention_masks)
 
-                logit_score = torch.log_softmax(scores[:, -1], dim=-1)
+                    logit_score = torch.log_softmax(scores[:, -1], dim=-1)
 
-                logit_score = output_scores.view(-1, 1) + logit_score  # 累计得分
-                # 取topk的时候我们是展平了然后再去调用topk函数
-                # 展平
-                logit_score = logit_score.view(-1)
-                hype_score, hype_pos = torch.topk(logit_score, beam_size)
-                # indice1 = (hype_pos // scores.shape[-1])  # 行索引
-                indice1 = (torch.div(hype_pos, scores.shape[-1], rounding_mode='trunc'))  # 行索引
-                indice2 = (hype_pos % scores.shape[-1]).long().reshape(-1, 1)  # 列索引
+                    logit_score = output_scores.view(-1, 1) + logit_score  # 累计得分
+                    # 取topk的时候我们是展平了然后再去调用topk函数
+                    # 展平
+                    logit_score = logit_score.view(-1)
+                    hype_score, hype_pos = torch.topk(logit_score, beam_size)
+                    # indice1 = (hype_pos // scores.shape[-1])  # 行索引
+                    indice1 = (torch.div(hype_pos, scores.shape[-1], rounding_mode='trunc'))  # 行索引
+                    indice2 = (hype_pos % scores.shape[-1]).long().reshape(-1, 1)  # 列索引
 
-                # 更新得分
-                output_scores = hype_score
-                output_ids = torch.cat([output_ids[indice1], indice2], dim=1).long()
-                new_input_ids = torch.cat([tgt_input_ids, output_ids], dim=1)
-                # new_token_type_ids = torch.cat([token_type_ids, torch.ones_like(output_ids)], dim=1)
+                    # 更新得分
+                    output_scores = hype_score
+                    output_ids = torch.cat([output_ids[indice1], indice2], dim=1).long()
+                    new_input_ids = torch.cat([tgt_input_ids, output_ids], dim=1)
+                    # new_token_type_ids = torch.cat([token_type_ids, torch.ones_like(output_ids)], dim=1)
 
-                end_counts = (output_ids == sep_id).sum(1)  # 统计出现的end标记
-                # best_one = output_scores.argmax()
-                flag = (end_counts < 1)  # 标记未完成序列
-                conv_flag = (end_counts == 1)  # 标记已完成序列
-                if conv_flag.all():  # 当前如果全部完成(全部为SEP)
-                    save_ids.extend(output_ids[conv_flag])
-                    save_scores.extend(output_scores[conv_flag]/(step+1))
-                    best_one = torch.tensor(save_scores).argmax().item()
-                    tgt_ids = save_ids[best_one]
-                    break
-                if not flag.all():  # 如果有已完成的
-                    # 保存已完成序列
-                    save_ids.extend(output_ids[conv_flag])
-                    save_scores.extend(output_scores[conv_flag]/(step+1))
+                    end_counts = (output_ids == sep_id).sum(1)  # 统计出现的end标记
+                    # best_one = output_scores.argmax()
+                    flag = (end_counts < 1)  # 标记未完成序列
+                    conv_flag = (end_counts == 1)  # 标记已完成序列
+                    if conv_flag.all():  # 当前如果全部完成(全部为SEP)
+                        save_ids.extend(output_ids[conv_flag])
+                        save_scores.extend(output_scores[conv_flag]/(step+1))
+                        best_one = torch.tensor(save_scores).argmax().item()
+                        tgt_ids = save_ids[best_one]
+                        break
+                    if not flag.all():  # 如果有已完成的
+                        # 保存已完成序列
+                        save_ids.extend(output_ids[conv_flag])
+                        save_scores.extend(output_scores[conv_flag]/(step+1))
 
-                    # 扔掉已完成序列相关数据
-                    tgt_input_ids = tgt_input_ids[flag]
-                    new_input_ids = new_input_ids[flag]
-                    memory = memory[:, flag, :]
-                    src_input_ids = src_input_ids[flag]
-                    src_attention_masks = src_attention_masks[flag]
-                    # new_token_type_ids = new_token_type_ids[flag]
-                    output_ids = output_ids[flag]  # 扔掉已完成序列
-                    output_scores = output_scores[flag]  # 扔掉已完成序列
-                    end_counts = end_counts[flag]  # 扔掉已完成end计数
-                    beam_size = flag.sum()  # topk相应变化
-                if step == self.tgt_len - 1:  # 字数到达最大限制
-                    # 未完成的也直接加到保存序列里
-                    save_ids.extend(output_ids[flag])
-                    save_scores.extend(output_scores[flag]/(step+1))
+                        # 扔掉已完成序列相关数据
+                        tgt_input_ids = tgt_input_ids[flag]
+                        new_input_ids = new_input_ids[flag]
+                        memory = memory[:, flag, :]
+                        src_input_ids = src_input_ids[flag]
+                        src_attention_masks = src_attention_masks[flag]
+                        # new_token_type_ids = new_token_type_ids[flag]
+                        output_ids = output_ids[flag]  # 扔掉已完成序列
+                        output_scores = output_scores[flag]  # 扔掉已完成序列
+                        end_counts = end_counts[flag]  # 扔掉已完成end计数
+                        beam_size = flag.sum()  # topk相应变化
+                    if step == self.tgt_len - 1:  # 字数到达最大限制
+                        # 未完成的也直接加到保存序列里
+                        save_ids.extend(output_ids[flag])
+                        save_scores.extend(output_scores[flag]/(step+1))
 
-                    best_one = torch.tensor(save_scores).argmax().item()
-                    tgt_ids = save_ids[best_one]
+                        best_one = torch.tensor(save_scores).argmax().item()
+                        tgt_ids = save_ids[best_one]
 
-                # end_counts = (output_ids == sep_id).sum(1)  # 统计出现的end标记
-                # best_one = output_scores.argmax()
-                # flag = (end_counts < 1)  # 标记未完成序列
-                # if end_counts[best_one] == 1:
-                #     # 说明出现终止了～
-                #     tgt_ids = output_ids[best_one][:-1]
-                #     break
-                # else:
-                #     # 保留未完成部分
-                #     flag = (end_counts < 1)  # 标记未完成序列
-                #     conv_flag = (end_counts == 1)  # 标记已完成序列
-                #     if not flag.all():  # 如果有已完成的
-                #         tgt_input_ids = tgt_input_ids[flag]
-                #         # token_type_ids = token_type_ids[flag]
-                #         new_input_ids = new_input_ids[flag]
-                #         memory = memory[:, flag, :]
-                #         src_input_ids = src_input_ids[flag]
-                #         src_attention_masks = src_attention_masks[flag]
-                #         # new_token_type_ids = new_token_type_ids[flag]
-                #         output_ids = output_ids[flag]  # 扔掉已完成序列
-                #         output_scores = output_scores[flag]  # 扔掉已完成序列
-                #         end_counts = end_counts[flag]  # 扔掉已完成end计数
-                #         beam_size = flag.sum()  # topk相应变化
-                # if step == self.tgt_len - 1:
-                #     tgt_ids = output_ids[output_scores.argmax()].unsqueeze(0)
+                    # end_counts = (output_ids == sep_id).sum(1)  # 统计出现的end标记
+                    # best_one = output_scores.argmax()
+                    # flag = (end_counts < 1)  # 标记未完成序列
+                    # if end_counts[best_one] == 1:
+                    #     # 说明出现终止了～
+                    #     tgt_ids = output_ids[best_one][:-1]
+                    #     break
+                    # else:
+                    #     # 保留未完成部分
+                    #     flag = (end_counts < 1)  # 标记未完成序列
+                    #     conv_flag = (end_counts == 1)  # 标记已完成序列
+                    #     if not flag.all():  # 如果有已完成的
+                    #         tgt_input_ids = tgt_input_ids[flag]
+                    #         # token_type_ids = token_type_ids[flag]
+                    #         new_input_ids = new_input_ids[flag]
+                    #         memory = memory[:, flag, :]
+                    #         src_input_ids = src_input_ids[flag]
+                    #         src_attention_masks = src_attention_masks[flag]
+                    #         # new_token_type_ids = new_token_type_ids[flag]
+                    #         output_ids = output_ids[flag]  # 扔掉已完成序列
+                    #         output_scores = output_scores[flag]  # 扔掉已完成序列
+                    #         end_counts = end_counts[flag]  # 扔掉已完成end计数
+                    #         beam_size = flag.sum()  # topk相应变化
+                    # if step == self.tgt_len - 1:
+                    #     tgt_ids = output_ids[output_scores.argmax()].unsqueeze(0)
 
 
             generated_token += self.decode(tgt_ids.unsqueeze(0))
@@ -755,54 +788,59 @@ class Trainer(object):
                 trg_ground_ids = batch[3].to(self.rank)
                 per_input_ids, query_input_ids = batch[6].to(self.rank), batch[7].to(self.rank)
 
-                memory = model.encode(src_input_ids, src_input_masks, src_type_ids).transpose(0, 1)
-                tgt_input_ids = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long, device=self.rank)
-                tgt_input_ids[:, 0] = self.cls_id  # bert sentence head
-                output_ids = torch.LongTensor([[self.cls_id]]).repeat(src_input_ids.shape[0], 1).to(self.rank)
-                for j in range(1, out_max_length):
-                    tgt_input_masks = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long,
-                                                  device=self.rank)
-                    tgt_input_masks[:, :j] = 1
+                if self.b2b:
+                    tgt_input_ids = model.generate(input_ids=src_input_ids, max_length=out_max_len, top_k=top_k,
+                                                   top_p=top_p, attention_mask=src_input_masks, bos_token_id=self.cls_id,
+                                                   eos_token_id=self.sep_id, pad_token_id=self.pad_id).squeeze(0)
+                else:
+                    memory = model.encode(src_input_ids, src_input_masks, src_type_ids).transpose(0, 1)
+                    tgt_input_ids = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long, device=self.rank)
+                    tgt_input_ids[:, 0] = self.cls_id  # bert sentence head
+                    output_ids = torch.LongTensor([[self.cls_id]]).repeat(src_input_ids.shape[0], 1).to(self.rank)
+                    for j in range(1, out_max_length):
+                        tgt_input_masks = torch.zeros(src_input_ids.shape[0], self.tgt_len, dtype=torch.long,
+                                                      device=self.rank)
+                        tgt_input_masks[:, :j] = 1
 
-                    src_attention_masks = ((1 - src_input_masks) > 0)
-                    tgt_attention_masks = ((1 - tgt_input_masks) > 0)
+                        src_attention_masks = ((1 - src_input_masks) > 0)
+                        tgt_attention_masks = ((1 - tgt_input_masks) > 0)
 
-                    scores = model.decode(memory, tgt_input_ids[:, :j], src_input_ids, tgt_attention_masks[:, :j],
-                                          src_attention_masks)
+                        scores = model.decode(memory, tgt_input_ids[:, :j], src_input_ids, tgt_attention_masks[:, :j],
+                                              src_attention_masks)
 
-                    logit_score = torch.softmax(scores[:, -1], dim=-1)
-                    for i in range(0, len(logit_score)):
-                        logit_score[i][self.unk_id] = -float('Inf')
+                        logit_score = torch.softmax(scores[:, -1], dim=-1)
+                        for i in range(0, len(logit_score)):
+                            logit_score[i][self.unk_id] = -float('Inf')
 
-                        # 对于已生成的结果generated中的每个token添加一个重复惩罚项，降低其生成概率
-                        for id_ in set(output_ids[i]):
-                            logit_score[i][int(id_.item())] /= 2.0
+                            # 对于已生成的结果generated中的每个token添加一个重复惩罚项，降低其生成概率
+                            for id_ in set(output_ids[i]):
+                                logit_score[i][int(id_.item())] /= 2.0
 
-                    # filtered_logits = self.top_k_top_p_filtering(logit_score, top_k=top_k, top_p=top_p)
-                    filtered_logits = self.sample_sequence(logit_score, top_k=top_k, top_p=top_p, device=self.rank)
-                    next_token = torch.multinomial(F.softmax(filtered_logits, dim=-1), num_samples=1)
-                    # if self.sep_id == next_token.item():
-                    #     break
-                    tgt_input_ids[:, j] = next_token.squeeze(-1)
-                    output_ids = torch.cat([output_ids, next_token], -1)
+                        # filtered_logits = self.top_k_top_p_filtering(logit_score, top_k=top_k, top_p=top_p)
+                        filtered_logits = self.sample_sequence(logit_score, top_k=top_k, top_p=top_p, device=self.rank)
+                        next_token = torch.multinomial(F.softmax(filtered_logits, dim=-1), num_samples=1)
+                        # if self.sep_id == next_token.item():
+                        #     break
+                        tgt_input_ids[:, j] = next_token.squeeze(-1)
+                        output_ids = torch.cat([output_ids, next_token], -1)
 
-                # mask掉SEP后面的字
-                sen_len = [out_max_length - 1] * tgt_input_ids.shape[0]
-                for i in range(0, tgt_input_ids.shape[0]):
-                    for j in range(0, tgt_input_ids.shape[1]):
-                        if tgt_input_ids[i][j] == self.tokenizer.convert_tokens_to_ids('[SEP]'):
-                            sen_len[i] = j
-                            break
+                    # mask掉SEP后面的字
+                    sen_len = [out_max_length - 1] * tgt_input_ids.shape[0]
+                    for i in range(0, tgt_input_ids.shape[0]):
+                        for j in range(0, tgt_input_ids.shape[1]):
+                            if tgt_input_ids[i][j] == self.tokenizer.convert_tokens_to_ids('[SEP]'):
+                                sen_len[i] = j
+                                break
 
-                response_mask = torch.ones_like(tgt_input_ids)
-                for i in range(0, response_mask.shape[0]):
-                    for j in range(0, response_mask.shape[1]):
-                        if j > sen_len[i]:
-                            response_mask[i][j] = 0
+                    response_mask = torch.ones_like(tgt_input_ids)
+                    for i in range(0, response_mask.shape[0]):
+                        for j in range(0, response_mask.shape[1]):
+                            if j > sen_len[i]:
+                                response_mask[i][j] = 0
 
-                #     print("response_idx:",response_idx.shape)
-                #     print("response_mask:",response_mask.shape)
-                tgt_input_ids = tgt_input_ids * response_mask
+                    #     print("response_idx:",response_idx.shape)
+                    #     print("response_mask:",response_mask.shape)
+                    tgt_input_ids = tgt_input_ids * response_mask
 
                 generated_token += self.decode(tgt_input_ids)
                 persona_token += self.decode(per_input_ids)
@@ -849,8 +887,13 @@ class Trainer(object):
                     4].to(self.rank)
                 per_input_ids, query_input_ids = batch[6].to(self.rank), batch[7].to(self.rank)
 
-                # Compute output of model
-                output = model(src_input_ids, src_input_masks, trg_input_ids, trg_input_masks, src_type_ids)
+                if self.b2b:
+                    output = model(input_ids=src_input_ids, attention_mask=src_input_masks,
+                                    decoder_input_ids=trg_input_ids, decoder_attention_mask=trg_input_masks,
+                                    labels=trg_ground_ids).logits
+                else:
+                    # Compute output of model
+                    output = model(src_input_ids, src_input_masks, trg_input_ids, trg_input_masks, src_type_ids)
 
                 # Get model predictions
                 predictions = output.topk(1)[1].squeeze()

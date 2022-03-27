@@ -45,7 +45,8 @@ def main():
     parser.add_argument('--top_p', default=0.9, type=float,
                         help='beam size')
     # parser.add_argument('--is_train', action='store_true')
-    parser.add_argument('--is_schedule', action='store_true',help='是否使用schedule')
+    parser.add_argument('--is_schedule', action='store_true', help='是否使用schedule')
+    parser.add_argument('--is_b2b', action='store_true')
     parser.add_argument('--is_test', action='store_true')
     parser.add_argument('--is_generate', action='store_true')
     parser.add_argument('--is_eval', action='store_true')
