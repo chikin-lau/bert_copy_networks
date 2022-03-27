@@ -45,7 +45,7 @@ def main():
     parser.add_argument('--top_p', default=0.9, type=float,
                         help='beam size')
     # parser.add_argument('--is_train', action='store_true')
-    parser.add_argument('--is_schedule', default=True, type=bool)
+    parser.add_argument('--is_schedule', action='store_true',help='是否使用schedule')
     parser.add_argument('--is_test', action='store_true')
     parser.add_argument('--is_generate', action='store_true')
     parser.add_argument('--is_eval', action='store_true')
@@ -77,7 +77,7 @@ if __name__ == "__main__":
 
 
 
-# !python train.py --epochs 15 --train_batch_size 16 --dev_batch_size 16 --train_file "Persona_train_clean.tsv" --dev_file "Persona_val_clean.tsv"
+# !python train.py --epochs 15 --train_batch_size 16 --dev_batch_size 16 --is_schedule --train_file "Persona_train_clean.tsv" --dev_file "Persona_val_clean.tsv"
 # !python train.py --is_eval --eval_batch_size 16 --test_file "Persona_test_deepclean.tsv"
 # !python train.py --is_test --eval_batch_size 16 --test_file "Persona_test_deepclean.tsv"
 # !python train.py --is_generate --top_k 5 --top_p 0.9 --eval_batch_size 16 --test_file "Persona_test_deepclean.tsv"
