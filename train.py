@@ -41,9 +41,9 @@ def main():
     parser.add_argument('--beam_size', default=3, type=int,
                         help='beam size')
     parser.add_argument('--top_k', default=5, type=int,
-                        help='beam size')
+                        help='top_k size')
     parser.add_argument('--top_p', default=0.9, type=float,
-                        help='beam size')
+                        help='top_p size')
     # parser.add_argument('--is_train', action='store_true')
     parser.add_argument('--is_schedule', action='store_true', help='是否使用schedule')
     parser.add_argument('--is_b2b', action='store_true')
