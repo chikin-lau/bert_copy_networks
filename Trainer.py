@@ -409,7 +409,7 @@ class Trainer(object):
                     4].to(self.rank)
 
                 if self.b2b:
-                    outputs = model(input_ids=src_input_ids, attention_mask=src_input_masks,
+                    output = model(input_ids=src_input_ids, attention_mask=src_input_masks,
                                     decoder_input_ids=trg_input_ids, decoder_attention_mask=trg_input_masks,
                                     labels=trg_ground_ids).logits
                 else:
