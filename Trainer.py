@@ -452,7 +452,7 @@ class Trainer(object):
             per_input_ids, query_input_ids = batch[6].to(self.rank), batch[7].to(self.rank)
 
             if self.b2b:
-                tgt_input_ids = model.generate(input_ids=src_input_ids, max_length=out_max_len,
+                tgt_input_ids = model.generate(input_ids=src_input_ids, max_length=self.tgt_len,
                                                attention_mask=src_input_masks, bos_token_id=self.cls_id,
                                                eos_token_id=self.sep_id, pad_token_id=self.pad_id)
             else:
@@ -558,7 +558,7 @@ class Trainer(object):
             per_input_ids, query_input_ids = batch[6].to(self.rank), batch[7].to(self.rank)
 
             if self.b2b:
-                tgt_ids = model.generate(input_ids=src_input_ids, max_length=out_max_len, num_beams=beam_size,
+                tgt_ids = model.generate(input_ids=src_input_ids, max_length=self.tgt_len, num_beams=beam_size,
                                                attention_mask=src_input_masks, bos_token_id=self.cls_id,
                                                eos_token_id=self.sep_id, pad_token_id=self.pad_id).squeeze(0)
             else:
@@ -791,7 +791,7 @@ class Trainer(object):
                 per_input_ids, query_input_ids = batch[6].to(self.rank), batch[7].to(self.rank)
 
                 if self.b2b:
-                    tgt_input_ids = model.generate(input_ids=src_input_ids, max_length=out_max_len, top_k=top_k,
+                    tgt_input_ids = model.generate(input_ids=src_input_ids, max_length=self.tgt_len, top_k=top_k,
                                                    top_p=top_p, attention_mask=src_input_masks, bos_token_id=self.cls_id,
                                                    eos_token_id=self.sep_id, pad_token_id=self.pad_id).squeeze(0)
                 else:
