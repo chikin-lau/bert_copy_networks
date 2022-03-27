@@ -280,19 +280,20 @@ class Trainer(object):
 
         total_steps = len(train_loader) * self.epochs
 
-        param_optimizer = list(model.named_parameters())
-        no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
-        optimizer_grouped_parameters = [
-            {'params': model.encoder.parameters(), 'lr': self.pre_lr, 'weight_decay': 0.01},
-            {'params': model.tgt_embed.parameters(), 'lr': self.pre_lr, 'weight_decay': 0.01},
-            {'params': model.decoder.parameters(), 'weight_decay': 0.01},
-            {'params': model.p_vocab.parameters(), 'weight_decay': 0.01},
-            {'params': model.p_gen.parameters(), 'weight_decay': 0.01}
-        ]
-        optimizer = AdamW(optimizer_grouped_parameters, lr=self.lr, eps=1e-8)
-
         if self.b2b:
             optimizer = AdamW(model.parameters(), lr=self.pre_lr, eps=1e-8)
+        else:
+            param_optimizer = list(model.named_parameters())
+            no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+            optimizer_grouped_parameters = [
+                {'params': model.encoder.parameters(), 'lr': self.pre_lr, 'weight_decay': 0.01},
+                {'params': model.tgt_embed.parameters(), 'lr': self.pre_lr, 'weight_decay': 0.01},
+                {'params': model.decoder.parameters(), 'weight_decay': 0.01},
+                {'params': model.p_vocab.parameters(), 'weight_decay': 0.01},
+                {'params': model.p_gen.parameters(), 'weight_decay': 0.01}
+            ]
+            optimizer = AdamW(optimizer_grouped_parameters, lr=self.lr, eps=1e-8)
+
 
         if self.fp16:
             scaler = torch.cuda.amp.GradScaler()
