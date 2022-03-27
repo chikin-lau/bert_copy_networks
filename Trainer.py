@@ -65,6 +65,7 @@ class Trainer(object):
 
         self.test_data = self.load_data(args.test_file, args.test_file.split(".")[0] + ".pt")
 
+        self.b2b = False
         if args.is_b2b:
             self.b2b = True
             self.model = EncoderDecoderModel.from_encoder_decoder_pretrained("bert-base-chinese", "bert-base-chinese")
