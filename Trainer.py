@@ -369,7 +369,7 @@ class Trainer(object):
                     epochs_no_improve = 0
                     torch.save(model, f'./model_dict/model.pt')
             if epochs_no_improve > 3:
-                self.logger.info(f"No best dev loss, the best valid epoch is {best_valid_epoch}, stop training.")
+                self.logger.info(f"No best dev loss, the best valid epoch is {best_valid_epoch + 1}, stop training.")
                 break
 
     def validation(self, model, epoch, dev_loader):
