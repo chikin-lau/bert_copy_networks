@@ -307,8 +307,8 @@ class Trainer(object):
 
                 print(f"encoder lr:{optimizer.state_dict()['param_groups'][0]['initial_lr']}\n"
                       f"tgt_embed lr:{optimizer.state_dict()['param_groups'][1]['initial_lr']}\n"
-                      f"other lr:{optimizer.state_dict()['param_groups'][2]['initial_lr']}\n"
-                      f"scheduler:linear warmup,warmup_steps={total_steps / 10}")
+                      f"other lr:{optimizer.state_dict()['param_groups'][2]['initial_lr']}\n")
+            print(f"scheduler:linear warmup,warmup_steps={total_steps / 10}")
 
         is_best = False
         curr_valid_loss = 0
