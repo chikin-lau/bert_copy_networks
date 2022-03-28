@@ -18,9 +18,9 @@ class TransformerDecoder(nn.Module):
         self.dropout = Dropout(dropout)
         self.linear2 = Linear(dim_feedforward, d_model)
 
-        self.norm1 = LayerNorm(d_model)
-        self.norm2 = LayerNorm(d_model)
-        self.norm3 = LayerNorm(d_model)
+        self.norm1 = LayerNorm(d_model, eps=1e-12)
+        self.norm2 = LayerNorm(d_model, eps=1e-12)
+        self.norm3 = LayerNorm(d_model, eps=1e-12)
         self.dropout1 = Dropout(dropout)
         self.dropout2 = Dropout(dropout)
         self.dropout3 = Dropout(dropout)
@@ -87,7 +87,7 @@ class TransformerDecoder(nn.Module):
         # attn_dists.append(attn_dist)    # add attention weights to attn_dists
 
         # feed forward neural network
-        tgt2 = self.linear2(self.dropout(F.relu(self.linear1(tgt))))
+        tgt2 = self.linear2(self.dropout(F.gelu(self.linear1(tgt))))
         tgt = tgt + self.dropout3(tgt2)
         tgt = self.norm3(tgt)
 
