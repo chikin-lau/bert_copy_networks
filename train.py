@@ -87,4 +87,4 @@ if __name__ == "__main__":
 
 # --dataset_dir './data/ConvAI2'
 
-# !python train.py --epochs 5 --tgt_len 32 --train_batch_size 16 --dev_batch_size 16 --is_schedule --dataset_dir './data/ConvAI2' --train_file "Persona_train_1W.tsv" --dev_file "Persona_val_1K.tsv" --val_file "Persona_test_4K.tsv"
+# !python train.py --epochs 5 --tgt_len 32 --train_batch_size 16 --dev_batch_size 16 --is_schedule --dataset_dir './data/ConvAI2' --train_file "Persona_train_1W.tsv" --dev_file "Persona_val_1K.tsv" --test_file "Persona_test_4K.tsv"

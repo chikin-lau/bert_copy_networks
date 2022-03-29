@@ -526,10 +526,11 @@ class Trainer(object):
             # trg_string = re.sub(r"\s{1,}", "", trg_string)
 
         for p, q, g, r in zip(persona_token, query_token, gold_token, generated_token):
-            p = re.sub(r"\s{1,}", "", p)
-            q = re.sub(r"\s{1,}", "", q)
-            g = re.sub(r"\s{1,}", "", g)
-            r = re.sub(r"\s{1,}", "", r)
+            if self.dataset_dir.split("/")[2] == "CPC":
+                p = re.sub(r"\s{1,}", "", p)
+                q = re.sub(r"\s{1,}", "", q)
+                g = re.sub(r"\s{1,}", "", g)
+                r = re.sub(r"\s{1,}", "", r)
             f.write(f"persona:{p}\nquery:{q}\ngold:{g}\nresponse:{r}\n\n")
 
         bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2, _bert_score = self.automated_metrics(generated_token,
@@ -701,10 +702,11 @@ class Trainer(object):
             # trg_string = re.sub(r"\s{1,}", "", trg_string)
 
         for p, q, g, r in zip(persona_token, query_token, gold_token, generated_token):
-            p = re.sub(r"\s{1,}", "", p)
-            q = re.sub(r"\s{1,}", "", q)
-            g = re.sub(r"\s{1,}", "", g)
-            r = re.sub(r"\s{1,}", "", r)
+            if self.dataset_dir.split("/")[2] == "CPC":
+                p = re.sub(r"\s{1,}", "", p)
+                q = re.sub(r"\s{1,}", "", q)
+                g = re.sub(r"\s{1,}", "", g)
+                r = re.sub(r"\s{1,}", "", r)
             f.write(f"persona:{p}\nquery:{q}\ngold:{g}\nresponse:{r}\n\n")
 
         # print("generated_token:", generated_token)
@@ -876,10 +878,11 @@ class Trainer(object):
                 # trg_string = re.sub(r"\s{1,}", "", trg_string)
 
             for p, q, g, r in zip(persona_token, query_token, gold_token, generated_token):
-                p = re.sub(r"\s{1,}", "", p)
-                q = re.sub(r"\s{1,}", "", q)
-                g = re.sub(r"\s{1,}", "", g)
-                r = re.sub(r"\s{1,}", "", r)
+                if self.dataset_dir.split("/")[2] == "CPC":
+                    p = re.sub(r"\s{1,}", "", p)
+                    q = re.sub(r"\s{1,}", "", q)
+                    g = re.sub(r"\s{1,}", "", g)
+                    r = re.sub(r"\s{1,}", "", r)
                 f.write(f"persona:{p}\nquery:{q}\ngold:{g}\nresponse:{r}\n\n")
 
             bleu_1, bleu_2, bleu_3, bleu_4, F1, hyp_d1, hyp_d2, ref_d1, ref_d2, _bert_score = self.automated_metrics(generated_token,
@@ -931,13 +934,14 @@ class Trainer(object):
 
                 # print predict
                 per_string = self.decode(per_input_ids)[0]
-                per_string = re.sub(r"\s{1,}", "", per_string)
                 query_string = self.decode(query_input_ids)[0]
-                query_string = re.sub(r"\s{1,}", "", query_string)
                 trg_string = self.decode(trg_input_ids)[0]
-                trg_string = re.sub(r"\s{1,}", "", trg_string)
                 pred_string = self.decode(predictions)[0]
-                pred_string = re.sub(r"\s{1,}", "", pred_string)
+                if self.dataset_dir.split("/")[2] == "CPC":
+                    per_string = re.sub(r"\s{1,}", "", per_string)
+                    query_string = re.sub(r"\s{1,}", "", query_string)
+                    trg_string = re.sub(r"\s{1,}", "", trg_string)
+                    pred_string = re.sub(r"\s{1,}", "", pred_string)
 
                 # f.write(src_string + '\t' + trg_string + '\t' + pred_string + '\n')
                 print(
@@ -1018,7 +1022,10 @@ class Trainer(object):
 
 
         # bert_score
-        p, r, score = bert_score(generated_token, gold_token, lang="zh", verbose=True)
+        if self.dataset_dir.split("/")[2] == "ConvAI2":
+            p, r, score = bert_score(generated_token, gold_token, lang="en", verbose=True)
+        else:
+            p, r, score = bert_score(generated_token, gold_token, lang="zh", verbose=True)
         score = score.mean()
         print(f"System level bert_score score: {score:.3f}")
 
