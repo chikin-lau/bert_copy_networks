@@ -6,7 +6,7 @@ def main():
     parser = argparse.ArgumentParser(description='main',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('--dataset_dir', default='./data',
+    parser.add_argument('--dataset_dir', default='./data/CPC',
                         help='directory for dataset')
     parser.add_argument('--train_file', default='Persona_train_1W.tsv',
                         help='name of train file')
@@ -84,3 +84,7 @@ if __name__ == "__main__":
 # !python train.py --is_generate --top_k 5 --top_p 0.9 --eval_batch_size 16 --test_file "Persona_test_deepclean.tsv"
 # !python train.py --is_beam_search --beam_size 3 --eval_batch_size 16 --test_file "Persona_test_deepclean.tsv"
 # !python test.py --epochs 2
+
+# --dataset_dir './data/ConvAI2'
+
+# !python train.py --epochs 5 --tgt_len 32 --train_batch_size 16 --dev_batch_size 16 --is_schedule --dataset_dir './data/ConvAI2' --train_file "Persona_train_1W.tsv" --dev_file "Persona_val_1K.tsv" --val_file "Persona_test_4K.tsv"

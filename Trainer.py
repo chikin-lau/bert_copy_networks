@@ -50,7 +50,10 @@ class Trainer(object):
         self.lr = args.lr
         self.pre_lr = args.pre_lr
 
-        self.tokenizer = BertTokenizer.from_pretrained('bert-base-chinese')
+        if self.dataset_dir.split("/")[2] == "ConvAI2":
+            self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        else:
+            self.tokenizer = BertTokenizer.from_pretrained('bert-base-chinese')
         self.vocab = self.tokenizer.vocab
         self.inv_vocab = {v: k for k, v in self.vocab.items()}
         self.vocab_size = len(self.vocab)
@@ -65,19 +68,35 @@ class Trainer(object):
 
         self.test_data = self.load_data(args.test_file, args.test_file.split(".")[0] + ".pt")
 
-        self.b2b = False
-        if args.is_b2b:
-            self.b2b = True
-            self.model = EncoderDecoderModel.from_encoder_decoder_pretrained("bert-base-chinese", "bert-base-chinese")
-            self.model.config.decoder_start_token_id = self.tokenizer.cls_token_id
-            self.model.config.pad_token_id = self.tokenizer.pad_token_id
-            self.model.config.vocab_size = self.model.config.decoder.vocab_size
+        if self.dataset_dir.split("/")[2] == "ConvAI2":
+            self.b2b = False
+            if args.is_b2b:
+                self.b2b = True
+                self.model = EncoderDecoderModel.from_encoder_decoder_pretrained("bert-base-uncased",
+                                                                                 "bert-base-uncased")
+                self.model.config.decoder_start_token_id = self.tokenizer.cls_token_id
+                self.model.config.pad_token_id = self.tokenizer.pad_token_id
+                self.model.config.vocab_size = self.model.config.decoder.vocab_size
+            else:
+                self.model = PointerGeneratorTransformer(
+                    rank=self.rank, src_vocab_size=self.vocab_size,
+                    tgt_vocab_size=self.vocab_size, inv_vocab=self.inv_vocab,
+                    pad_id=self.pad_id, max_len=self.max_len, dataset=self.dataset_dir.split("/")[2]
+                )
         else:
-            self.model = PointerGeneratorTransformer(
-                rank=self.rank, src_vocab_size=self.vocab_size,
-                tgt_vocab_size=self.vocab_size, inv_vocab=self.inv_vocab,
-                pad_id=self.pad_id, max_len=self.max_len
-            )
+            self.b2b = False
+            if args.is_b2b:
+                self.b2b = True
+                self.model = EncoderDecoderModel.from_encoder_decoder_pretrained("bert-base-chinese", "bert-base-chinese")
+                self.model.config.decoder_start_token_id = self.tokenizer.cls_token_id
+                self.model.config.pad_token_id = self.tokenizer.pad_token_id
+                self.model.config.vocab_size = self.model.config.decoder.vocab_size
+            else:
+                self.model = PointerGeneratorTransformer(
+                    rank=self.rank, src_vocab_size=self.vocab_size,
+                    tgt_vocab_size=self.vocab_size, inv_vocab=self.inv_vocab,
+                    pad_id=self.pad_id, max_len=self.max_len, dataset=self.dataset_dir.split("/")[2]
+                )
 
         self.fp16 = args.fp16
         self.is_schedule = args.is_schedule

@@ -21,7 +21,7 @@ class PointerGeneratorTransformer(nn.Module):
                  inv_vocab=None, pad_id=0,
                  embedding_dim=768, fcn_hidden_dim=3072,
                  num_heads=12, num_layers=12, dropout=0.1,
-                 max_len=200):
+                 max_len=200, dataset=None):
         super(PointerGeneratorTransformer, self).__init__()
         
         self.rank = rank
@@ -30,8 +30,12 @@ class PointerGeneratorTransformer(nn.Module):
         self.embedding_dim = embedding_dim
         
         # Encoder layers
-        self.config = BertConfig.from_pretrained('bert-base-chinese')
-        self.encoder = BertModel.from_pretrained('bert-base-chinese')
+        if dataset == "ConvAI2":
+            self.config = BertConfig.from_pretrained('bert-base-uncased')
+            self.encoder = BertModel.from_pretrained('bert-base-uncased')
+        else:
+            self.config = BertConfig.from_pretrained('bert-base-chinese')
+            self.encoder = BertModel.from_pretrained('bert-base-chinese')
         
         # Source and target embeddings
         # using word embeddings from pre-trained bert
